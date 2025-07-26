@@ -1,0 +1,378 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/**
+ * Semantic Kernel CLI Tool
+ * 
+ * Command-line interface for managing and testing Semantic Kernel functionality.
+ * Provides commands for testing AI services, managing plugins, cache operations,
+ * and development utilities.
+ * 
+ * @package SemanticKernel\CLI
+ * @author  Mayur Saptal <mayursaptal@gmail.com>
+ * @version 1.0.0
+ * @since   1.0.0
+ */
+
+// Autoload dependencies
+if (file_exists(__DIR__ . '/../vendor/autoload.php')) {
+    require_once __DIR__ . '/../vendor/autoload.php';
+} elseif (file_exists(__DIR__ . '/../../../autoload.php')) {
+    require_once __DIR__ . '/../../../autoload.php';
+} else {
+    echo "Error: Composer autoloader not found. Please run 'composer install'.\n";
+    exit(1);
+}
+
+use SemanticKernel\Kernel;
+use SemanticKernel\KernelBuilder;
+use SemanticKernel\AI\OpenAIChatService;
+use SemanticKernel\Memory\VolatileMemoryStore;
+use SemanticKernel\Memory\RedisMemoryStore;
+use SemanticKernel\ContextVariables;
+use SemanticKernel\Utils\TokenCounter;
+use SemanticKernel\Cache\MemoryCache;
+
+/**
+ * Semantic Kernel CLI Application
+ */
+class SemanticKernelCLI
+{
+    private array $commands = [];
+    private ?Kernel $kernel = null;
+
+    public function __construct()
+    {
+        $this->registerCommands();
+    }
+
+    /**
+     * Registers all available CLI commands
+     */
+    private function registerCommands(): void
+    {
+        $this->commands = [
+            'help' => [$this, 'showHelp'],
+            'version' => [$this, 'showVersion'],
+            'test' => [$this, 'runTests'],
+            'test-ai' => [$this, 'testAIService'],
+            'test-memory' => [$this, 'testMemory'],
+            'cache-stats' => [$this, 'showCacheStats'],
+            'cache-clear' => [$this, 'clearCache'],
+            'tokens' => [$this, 'countTokens'],
+            'demo' => [$this, 'runDemo'],
+            'config' => [$this, 'showConfig'],
+            'plugins' => [$this, 'listPlugins'],
+        ];
+    }
+
+    /**
+     * Main CLI entry point
+     */
+    public function run(array $argv): void
+    {
+        $command = $argv[1] ?? 'help';
+        $args = array_slice($argv, 2);
+
+        if (!isset($this->commands[$command])) {
+            echo "❌ Unknown command: {$command}\n";
+            echo "Run 'sk help' for available commands.\n";
+            exit(1);
+        }
+
+        try {
+            call_user_func($this->commands[$command], $args);
+        } catch (Exception $e) {
+            echo "❌ Error: {$e->getMessage()}\n";
+            exit(1);
+        }
+    }
+
+    /**
+     * Shows help information
+     */
+    private function showHelp(array $args): void
+    {
+        echo "🧠 Semantic Kernel PHP - CLI Tool\n";
+        echo "=================================\n\n";
+        echo "Usage: sk <command> [options]\n\n";
+        echo "Commands:\n";
+        echo "  help         Show this help message\n";
+        echo "  version      Show version information\n";
+        echo "  test         Run all tests\n";
+        echo "  test-ai      Test AI service connectivity\n";
+        echo "  test-memory  Test memory store operations\n";
+        echo "  cache-stats  Show cache statistics\n";
+        echo "  cache-clear  Clear all caches\n";
+        echo "  tokens       Count tokens in text\n";
+        echo "  demo         Run interactive demo\n";
+        echo "  config       Show current configuration\n";
+        echo "  plugins      List available plugins\n\n";
+        echo "Examples:\n";
+        echo "  sk test-ai               # Test OpenAI connectivity\n";
+        echo "  sk tokens \"Hello world\"   # Count tokens in text\n";
+        echo "  sk demo                  # Interactive demo\n";
+    }
+
+    /**
+     * Shows version information
+     */
+    private function showVersion(array $args): void
+    {
+        echo "🧠 Semantic Kernel PHP v1.0.0\n";
+        echo "Author: Mayur Saptal <mayursaptal@gmail.com>\n";
+        echo "Repository: https://github.com/mayursaptal/semantic-kernel-php\n";
+        echo "PHP Version: " . PHP_VERSION . "\n";
+    }
+
+    /**
+     * Runs all tests
+     */
+    private function runTests(array $args): void
+    {
+        echo "🧪 Running Semantic Kernel Tests\n";
+        echo "===============================\n\n";
+
+        // Run simple test runner
+        $exitCode = 0;
+        $output = [];
+        exec('php tests/run_all_tests.php', $output, $exitCode);
+
+        foreach ($output as $line) {
+            echo $line . "\n";
+        }
+
+        if ($exitCode === 0) {
+            echo "\n✅ All tests passed!\n";
+        } else {
+            echo "\n❌ Some tests failed!\n";
+            exit(1);
+        }
+    }
+
+    /**
+     * Tests AI service connectivity
+     */
+    private function testAIService(array $args): void
+    {
+        echo "🤖 Testing AI Service Connectivity\n";
+        echo "=================================\n\n";
+
+        // Check for API key
+        $apiKey = $_ENV['OPENAI_API_KEY'] ?? null;
+        if (!$apiKey) {
+            echo "❌ OPENAI_API_KEY not found in environment\n";
+            echo "Please set your OpenAI API key in .env file\n";
+            exit(1);
+        }
+
+        try {
+            $service = new OpenAIChatService($apiKey);
+            
+            echo "🔄 Testing service availability...\n";
+            if ($service->isServiceAvailable()) {
+                echo "✅ OpenAI service is available\n";
+            } else {
+                echo "❌ OpenAI service is not available\n";
+                exit(1);
+            }
+
+            echo "🔄 Testing text generation...\n";
+            $response = $service->generateText('Say "Hello from Semantic Kernel PHP!"');
+            echo "✅ Response: {$response}\n";
+
+            echo "🔄 Testing detailed generation...\n";
+            $metadata = $service->generateTextWithMetadata('Count to 3');
+            echo "✅ Model: {$metadata['model']}\n";
+            echo "✅ Processing time: {$metadata['processing_time']}s\n";
+            if (isset($metadata['usage']['total_tokens'])) {
+                echo "✅ Tokens used: {$metadata['usage']['total_tokens']}\n";
+            }
+
+        } catch (Exception $e) {
+            echo "❌ AI Service test failed: {$e->getMessage()}\n";
+            exit(1);
+        }
+
+        echo "\n🎉 AI Service tests completed successfully!\n";
+    }
+
+    /**
+     * Tests memory store operations
+     */
+    private function testMemory(array $args): void
+    {
+        echo "💾 Testing Memory Store Operations\n";
+        echo "=================================\n\n";
+
+        try {
+            // Test volatile memory
+            echo "🔄 Testing VolatileMemoryStore...\n";
+            $memory = new VolatileMemoryStore();
+            
+            $memory->createCollection('test_collection');
+            $memory->saveInformation('test_collection', 'doc1', 'This is a test document');
+            
+            $results = $memory->getRelevant('test_collection', 'test', 1);
+            if (!empty($results)) {
+                echo "✅ VolatileMemoryStore working correctly\n";
+            } else {
+                echo "❌ VolatileMemoryStore failed\n";
+            }
+
+            $stats = $memory->getStats();
+            echo "✅ Memory stats: {$stats['total_collections']} collections, {$stats['total_items']} items\n";
+
+        } catch (Exception $e) {
+            echo "❌ Memory test failed: {$e->getMessage()}\n";
+            exit(1);
+        }
+
+        echo "\n🎉 Memory tests completed successfully!\n";
+    }
+
+    /**
+     * Shows cache statistics
+     */
+    private function showCacheStats(array $args): void
+    {
+        echo "📊 Cache Statistics\n";
+        echo "==================\n\n";
+
+        $cache = new MemoryCache();
+        $stats = $cache->getStats();
+
+        echo "Items: {$stats['items']}\n";
+        echo "Max Items: {$stats['max_items']}\n";
+        echo "Hit Rate: {$stats['hit_rate']}%\n";
+        echo "Memory Usage: {$stats['memory_usage']} bytes\n";
+        echo "Cache Hits: {$stats['hits']}\n";
+        echo "Cache Misses: {$stats['misses']}\n";
+    }
+
+    /**
+     * Clears all caches
+     */
+    private function clearCache(array $args): void
+    {
+        echo "🧹 Clearing Caches\n";
+        echo "==================\n\n";
+
+        $cache = new MemoryCache();
+        if ($cache->clear()) {
+            echo "✅ Cache cleared successfully\n";
+        } else {
+            echo "❌ Failed to clear cache\n";
+            exit(1);
+        }
+    }
+
+    /**
+     * Counts tokens in text
+     */
+    private function countTokens(array $args): void
+    {
+        if (empty($args[0])) {
+            echo "❌ Please provide text to count tokens\n";
+            echo "Usage: sk tokens \"Your text here\"\n";
+            exit(1);
+        }
+
+        $text = $args[0];
+        $model = $args[1] ?? 'gpt-3.5-turbo';
+
+        $counter = new TokenCounter();
+        $tokens = $counter->countTokens($text, $model);
+        $cost = $counter->estimateCost($model, $tokens);
+
+        echo "🔢 Token Count Results\n";
+        echo "=====================\n\n";
+        echo "Text: \"{$text}\"\n";
+        echo "Model: {$model}\n";
+        echo "Tokens: {$tokens}\n";
+        echo "Estimated Cost: $" . number_format($cost, 6) . " USD\n";
+    }
+
+    /**
+     * Runs interactive demo
+     */
+    private function runDemo(array $args): void
+    {
+        echo "🎮 Semantic Kernel Interactive Demo\n";
+        echo "===================================\n\n";
+
+        // Initialize kernel
+        try {
+            $this->kernel = Kernel::createBuilder()
+                ->withVolatileMemory()
+                ->build();
+
+            echo "✅ Kernel initialized successfully\n";
+            echo "📊 Kernel stats: " . json_encode($this->kernel->getStats()) . "\n\n";
+
+        } catch (Exception $e) {
+            echo "❌ Failed to initialize kernel: {$e->getMessage()}\n";
+            exit(1);
+        }
+
+        echo "Demo completed! Try other commands like 'sk test-ai' or 'sk tokens'.\n";
+    }
+
+    /**
+     * Shows current configuration
+     */
+    private function showConfig(array $args): void
+    {
+        echo "⚙️ Current Configuration\n";
+        echo "=======================\n\n";
+
+        echo "PHP Version: " . PHP_VERSION . "\n";
+        echo "Memory Limit: " . ini_get('memory_limit') . "\n";
+        echo "Max Execution Time: " . ini_get('max_execution_time') . "s\n";
+        
+        $envVars = [
+            'OPENAI_API_KEY' => $_ENV['OPENAI_API_KEY'] ?? 'Not set',
+            'AZURE_OPENAI_API_KEY' => $_ENV['AZURE_OPENAI_API_KEY'] ?? 'Not set',
+        ];
+
+        echo "\nEnvironment Variables:\n";
+        foreach ($envVars as $key => $value) {
+            $displayValue = $value === 'Not set' ? $value : (strlen($value) > 10 ? substr($value, 0, 10) . '...' : $value);
+            echo "  {$key}: {$displayValue}\n";
+        }
+    }
+
+    /**
+     * Lists available plugins
+     */
+    private function listPlugins(array $args): void
+    {
+        echo "🔌 Available Plugins\n";
+        echo "===================\n\n";
+
+        $pluginDir = __DIR__ . '/../plugins/sample_plugins';
+        if (is_dir($pluginDir)) {
+            $files = glob($pluginDir . '/*.php');
+            foreach ($files as $file) {
+                $pluginName = basename($file, '.php');
+                echo "  📦 {$pluginName}\n";
+            }
+        } else {
+            echo "  No plugins directory found\n";
+        }
+
+        echo "\nTo create a new plugin, add a PHP class to the plugins/ directory.\n";
+    }
+}
+
+// Load environment variables if .env exists
+if (file_exists(__DIR__ . '/../.env')) {
+    $dotenv = Dotenv\Dotenv::createImmutable(__DIR__ . '/..');
+    $dotenv->load();
+}
+
+// Run the CLI application
+$cli = new SemanticKernelCLI();
+$cli->run($argv); 

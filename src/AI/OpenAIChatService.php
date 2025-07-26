@@ -4,27 +4,20 @@ declare(strict_types=1);
 
 namespace SemanticKernel\AI;
 
+use SemanticKernel\AI\ChatServiceInterface;
 use SemanticKernel\ContextVariables;
+use SemanticKernel\Cache\CacheInterface;
+use SemanticKernel\Cache\MemoryCache;
+use SemanticKernel\Utils\RateLimiter;
 use GuzzleHttp\Client;
-use GuzzleHttp\Exception\RequestException;
 use Exception;
 
 /**
- * OpenAI Chat Service - OpenAI API integration for Semantic Kernel
+ * OpenAI Chat Service with caching and rate limiting
  * 
- * Provides integration with OpenAI's chat completion APIs (GPT-3.5, GPT-4, etc.)
- * for semantic function execution within the Semantic Kernel framework.
- * Implements the ChatServiceInterface for consistent AI service integration.
- * 
- * Features:
- * - GPT-3.5 Turbo and GPT-4 model support
- * - Configurable request parameters (temperature, max tokens, etc.)
- * - HTTP timeout and retry handling
- * - Detailed response metadata and token tracking
- * - Context-aware prompt processing
- * - Error handling and logging
- * - Rate limiting and usage monitoring
- * - Custom base URL support for proxy configurations
+ * Enhanced implementation of ChatServiceInterface for OpenAI API integration
+ * with built-in response caching and rate limiting to optimize performance
+ * and manage API costs.
  * 
  * @package SemanticKernel\AI
  * @author  Mayur Saptal <mayursaptal@gmail.com>
@@ -33,69 +26,79 @@ use Exception;
  * 
  * @example
  * ```php
- * // Basic usage
- * $service = new OpenAIChatService('sk-your-api-key-here');
- * $response = $service->generateText('Explain quantum computing');
- * echo $response;
+ * $service = new OpenAIChatService($_ENV['OPENAI_API_KEY'], [
+ *     'cache_ttl' => 3600,        // Cache for 1 hour
+ *     'rate_limit' => [60, 60],   // 60 requests per minute
+ *     'model' => 'gpt-4'
+ * ]);
  * 
- * // Advanced configuration
- * $service = new OpenAIChatService(
- *     'sk-your-api-key-here',
- *     'gpt-4',
- *     'https://api.openai.com/v1',
- *     [
- *         'temperature' => 0.3,
- *         'max_tokens' => 500,
- *         'timeout' => 60
- *     ]
- * );
- * 
- * // Context-aware generation
- * $context = new ContextVariables(['language' => 'Spanish']);
- * $response = $service->generateText('Hello world in {{language}}', $context);
+ * $response = $service->generateText('Hello, world!');
  * ```
  */
 class OpenAIChatService implements ChatServiceInterface
 {
-    /** @var Client HTTP client for API requests */
-    private Client $httpClient;
-    
     /** @var string OpenAI API key */
     private string $apiKey;
-    
-    /** @var string Current model name */
-    private string $model;
-    
-    /** @var string API base URL */
-    private string $baseUrl;
-    
+
+    /** @var Client HTTP client for API requests */
+    private Client $httpClient;
+
     /** @var array<string, mixed> Service configuration options */
     private array $options;
+
+    /** @var CacheInterface Response cache */
+    private CacheInterface $cache;
+
+    /** @var RateLimiter API rate limiter */
+    private RateLimiter $rateLimiter;
+
+    /** @var array<string, mixed> Service statistics */
+    private array $stats = [
+        'requests_made' => 0,
+        'cache_hits' => 0,
+        'cache_misses' => 0,
+        'rate_limit_hits' => 0,
+        'total_tokens_used' => 0,
+        'estimated_cost' => 0.0,
+    ];
 
     /**
      * Constructs a new OpenAIChatService instance
      * 
-     * @param string $apiKey  OpenAI API key
-     * @param string $model   Model name (default: 'gpt-3.5-turbo')
-     * @param string $baseUrl API base URL (default: 'https://api.openai.com/v1')
-     * @param array  $options Additional configuration options
+     * @param string                     $apiKey OpenAI API key
+     * @param array<string, mixed>       $options Service configuration options
+     * @param CacheInterface|null        $cache Optional custom cache implementation
+     * @param RateLimiter|null          $rateLimiter Optional custom rate limiter
      * 
      * @since 1.0.0
      */
     public function __construct(
         string $apiKey,
-        string $model = 'gpt-3.5-turbo',
-        string $baseUrl = 'https://api.openai.com/v1',
-        array $options = []
+        array $options = [],
+        ?CacheInterface $cache = null,
+        ?RateLimiter $rateLimiter = null
     ) {
         $this->apiKey = $apiKey;
-        $this->model = $model;
-        $this->baseUrl = $baseUrl;
         $this->options = array_merge([
-            'max_tokens' => 1000,
+            'model' => 'gpt-3.5-turbo',
             'temperature' => 0.7,
-            'timeout' => 30
+            'max_tokens' => 2000,
+            'timeout' => 30,
+            'base_url' => 'https://api.openai.com/v1',
+            'cache_enabled' => true,
+            'cache_ttl' => 3600, // 1 hour
+            'rate_limit_requests' => 60,
+            'rate_limit_window' => 60, // per minute
         ], $options);
+
+        // Initialize cache
+        $this->cache = $cache ?? new MemoryCache(1000);
+
+        // Initialize rate limiter
+        $this->rateLimiter = $rateLimiter ?? new RateLimiter(
+            $this->options['rate_limit_requests'],
+            $this->options['rate_limit_window']
+        );
 
         $this->httpClient = new Client([
             'timeout' => $this->options['timeout'],
@@ -160,43 +163,69 @@ class OpenAIChatService implements ChatServiceInterface
     public function generateTextWithMetadata(string $prompt, ?ContextVariables $context = null): array
     {
         $startTime = microtime(true);
+        
+        // Generate cache key
+        $cacheKey = $this->generateCacheKey($prompt, $context);
+        
+        // Check cache first
+        if ($this->options['cache_enabled'] && $this->cache->has($cacheKey)) {
+            $this->stats['cache_hits']++;
+            $cachedResponse = $this->cache->get($cacheKey);
+            $cachedResponse['cached'] = true;
+            $cachedResponse['processing_time'] = microtime(true) - $startTime;
+            return $cachedResponse;
+        }
+
+        $this->stats['cache_misses']++;
+
+        // Check rate limiting
+        if (!$this->rateLimiter->allowRequest()) {
+            $this->stats['rate_limit_hits']++;
+            $waitTime = $this->rateLimiter->getWaitTime();
+            throw new Exception("Rate limit exceeded. Wait {$waitTime} seconds before retrying.");
+        }
 
         try {
-            $requestBody = [
-                'model' => $this->model,
-                'messages' => [
-                    ['role' => 'user', 'content' => $prompt]
-                ],
-                'max_tokens' => $this->options['max_tokens'],
-                'temperature' => $this->options['temperature'],
-            ];
-
-            $response = $this->httpClient->post($this->baseUrl . '/chat/completions', [
-                'json' => $requestBody,
+            $requestData = $this->buildRequestData($prompt, $context);
+            
+            $response = $this->httpClient->post($this->options['base_url'] . '/chat/completions', [
+                'json' => $requestData
             ]);
 
             $data = json_decode($response->getBody()->getContents(), true);
             
-            if (isset($data['error'])) {
-                throw new Exception('OpenAI API error: ' . $data['error']['message']);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw new Exception('Invalid JSON response from OpenAI API');
             }
 
-            $endTime = microtime(true);
-            $processingTime = round(($endTime - $startTime) * 1000, 2);
+            if (isset($data['error'])) {
+                throw new Exception('OpenAI API Error: ' . $data['error']['message']);
+            }
 
-            return [
+            $result = [
                 'text' => $data['choices'][0]['message']['content'] ?? '',
-                'model' => $data['model'] ?? $this->model,
-                'tokens_used' => $data['usage']['total_tokens'] ?? 0,
-                'prompt_tokens' => $data['usage']['prompt_tokens'] ?? 0,
-                'completion_tokens' => $data['usage']['completion_tokens'] ?? 0,
-                'processing_time' => $processingTime,
+                'model' => $data['model'] ?? $this->options['model'],
+                'usage' => $data['usage'] ?? [],
+                'cached' => false,
+                'processing_time' => microtime(true) - $startTime,
                 'finish_reason' => $data['choices'][0]['finish_reason'] ?? 'unknown',
-                'service' => 'openai',
-                'timestamp' => time(),
             ];
 
-        } catch (RequestException $e) {
+            // Update statistics
+            $this->stats['requests_made']++;
+            if (isset($data['usage']['total_tokens'])) {
+                $this->stats['total_tokens_used'] += $data['usage']['total_tokens'];
+                $this->stats['estimated_cost'] += $this->estimateRequestCost($data['usage']);
+            }
+
+            // Cache the response
+            if ($this->options['cache_enabled']) {
+                $this->cache->set($cacheKey, $result, $this->options['cache_ttl']);
+            }
+
+            return $result;
+
+        } catch (Exception $e) {
             throw new Exception('OpenAI API request failed: ' . $e->getMessage());
         }
     }
@@ -237,7 +266,7 @@ class OpenAIChatService implements ChatServiceInterface
 
         try {
             // Test with a minimal request to check connectivity
-            $this->httpClient->get($this->baseUrl . '/models', [
+            $this->httpClient->get($this->options['base_url'] . '/models', [
                 'timeout' => 5,
             ]);
             return true;
@@ -293,7 +322,7 @@ class OpenAIChatService implements ChatServiceInterface
             throw new \InvalidArgumentException("Unsupported model: {$model}");
         }
 
-        $this->model = $model;
+        $this->options['model'] = $model;
         return $this;
     }
 
@@ -305,7 +334,7 @@ class OpenAIChatService implements ChatServiceInterface
      */
     public function getModel(): string
     {
-        return $this->model;
+        return $this->options['model'];
     }
 
     /**
@@ -340,6 +369,9 @@ class OpenAIChatService implements ChatServiceInterface
             ]);
         }
 
+        // Update cache and rate limiter options if changed
+        $this->options = array_merge($this->options, $options);
+
         return $this;
     }
 
@@ -373,7 +405,7 @@ class OpenAIChatService implements ChatServiceInterface
      */
     public function getBaseUrl(): string
     {
-        return $this->baseUrl;
+        return $this->options['base_url'];
     }
 
     /**
@@ -386,11 +418,146 @@ class OpenAIChatService implements ChatServiceInterface
     {
         return [
             'service' => 'OpenAI',
-            'model' => $this->model,
-            'base_url' => $this->baseUrl,
+            'model' => $this->options['model'],
+            'base_url' => $this->options['base_url'],
             'api_key' => $this->getApiKey(),
             'is_available' => $this->isServiceAvailable(),
-            'options' => $this->options
+            'options' => $this->options,
+            'cache_enabled' => $this->options['cache_enabled'],
+            'cache_ttl' => $this->options['cache_ttl'],
+            'rate_limit_requests' => $this->options['rate_limit_requests'],
+            'rate_limit_window' => $this->options['rate_limit_window'],
         ];
+    }
+
+    /**
+     * Generates a cache key for the request
+     * 
+     * @param string                $prompt  Input prompt
+     * @param ContextVariables|null $context Optional context variables
+     * 
+     * @return string Cache key
+     * @since 1.0.0
+     * @internal
+     */
+    private function generateCacheKey(string $prompt, ?ContextVariables $context = null): string
+    {
+        $contextData = $context ? $context->all() : [];
+        $keyData = [
+            'prompt' => $prompt,
+            'context' => $contextData,
+            'model' => $this->options['model'],
+            'temperature' => $this->options['temperature'],
+            'max_tokens' => $this->options['max_tokens'],
+        ];
+        
+        return 'openai_' . md5(json_encode($keyData));
+    }
+
+    /**
+     * Builds request data for OpenAI API
+     * 
+     * @param string                $prompt  Input prompt
+     * @param ContextVariables|null $context Optional context variables
+     * 
+     * @return array<string, mixed> Request data
+     * @since 1.0.0
+     * @internal
+     */
+    private function buildRequestData(string $prompt, ?ContextVariables $context = null): array
+    {
+        // Apply context variables to prompt if provided
+        if ($context) {
+            foreach ($context->all() as $key => $value) {
+                $prompt = str_replace("{{$key}}", (string) $value, $prompt);
+            }
+        }
+
+        return [
+            'model' => $this->options['model'],
+            'messages' => [
+                ['role' => 'user', 'content' => $prompt]
+            ],
+            'temperature' => $this->options['temperature'],
+            'max_tokens' => $this->options['max_tokens'],
+        ];
+    }
+
+    /**
+     * Estimates the cost of a request based on token usage
+     * 
+     * @param array<string, int> $usage Token usage data from API
+     * 
+     * @return float Estimated cost in USD
+     * @since 1.0.0
+     * @internal
+     */
+    private function estimateRequestCost(array $usage): float
+    {
+        $model = $this->options['model'];
+        $inputTokens = $usage['prompt_tokens'] ?? 0;
+        $outputTokens = $usage['completion_tokens'] ?? 0;
+
+        // Pricing per 1K tokens (as of December 2024)
+        $pricing = [
+            'gpt-4' => ['input' => 0.03, 'output' => 0.06],
+            'gpt-4-turbo' => ['input' => 0.01, 'output' => 0.03],
+            'gpt-3.5-turbo' => ['input' => 0.001, 'output' => 0.002],
+        ];
+
+        $modelPricing = $pricing[$model] ?? $pricing['gpt-3.5-turbo'];
+        
+        $inputCost = ($inputTokens / 1000) * $modelPricing['input'];
+        $outputCost = ($outputTokens / 1000) * $modelPricing['output'];
+
+        return $inputCost + $outputCost;
+    }
+
+    /**
+     * Gets service statistics including cache and rate limiting metrics
+     * 
+     * @return array<string, mixed> Service statistics
+     * @since 1.0.0
+     */
+    public function getServiceStats(): array
+    {
+        return [
+            'service_stats' => $this->stats,
+            'cache_stats' => $this->cache->getStats(),
+            'rate_limiter_stats' => $this->rateLimiter->getStats(),
+        ];
+    }
+
+    /**
+     * Clears the response cache
+     * 
+     * @return bool True if cache was cleared successfully
+     * @since 1.0.0
+     */
+    public function clearCache(): bool
+    {
+        return $this->cache->clear();
+    }
+
+    /**
+     * Gets the current cache instance
+     * 
+     * @return CacheInterface Cache instance
+     * @since 1.0.0
+     */
+    public function getCache(): CacheInterface
+    {
+        return $this->cache;
+    }
+
+    /**
+     * Gets the current rate limiter instance
+     * 
+     * @return RateLimiter Rate limiter instance
+     * @since 1.0.0
+     */
+    public function getRateLimiter(): RateLimiter
+    {
+        return $this->rateLimiter;
     }
 } 
