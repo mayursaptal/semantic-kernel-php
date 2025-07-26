@@ -1,0 +1,11 @@
+Please create a concise summary of the following text. Focus on the main points and key information:
+
+Text to summarize:
+{{input}}
+
+Requirements:
+- Keep the summary to 2-3 sentences maximum
+- Preserve the most important information
+- Use clear and simple language
+
+Summary: 

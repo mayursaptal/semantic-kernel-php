@@ -1,0 +1,10 @@
+Translate the following text to {{target_language}}. Maintain the original meaning and tone as closely as possible:
+
+Original text:
+{{input}}
+
+Target language: {{target_language}}
+
+Please provide an accurate and natural-sounding translation:
+
+Translation: 

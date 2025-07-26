@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.0/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+         stopOnFailure="false"
+         stopOnError="false"
+         stopOnIncomplete="false"
+         stopOnSkipped="false"
+         failOnRisky="false"
+         failOnWarning="false"
+         beStrictAboutOutputDuringTests="true"
+         cacheDirectory=".phpunit.cache"
+         defaultTestSuite="unit">
+
+    <!-- Test Suites Configuration -->
+    <testsuites>
+        <!-- Unit Tests - Fast, isolated tests -->
+        <testsuite name="unit">
+            <directory suffix="Test.php">tests/</directory>
+            <exclude>tests/Integration/</exclude>
+        </testsuite>
+        
+        <!-- Integration Tests - Cross-component tests -->
+        <testsuite name="integration">
+            <directory suffix="Test.php">tests/Integration/</directory>
+        </testsuite>
+        
+        <!-- All Tests - Complete test suite -->
+        <testsuite name="all">
+            <directory suffix="Test.php">tests/</directory>
+        </testsuite>
+    </testsuites>
+
+    <!-- Source Code Coverage Configuration -->
+    <source>
+        <include>
+            <directory suffix=".php">src/</directory>
+        </include>
+        <exclude>
+            <!-- Exclude test utilities and sample code -->
+            <directory>src/Tests/</directory>
+            <file>src/bootstrap.php</file>
+        </exclude>
+    </source>
+
+    <!-- Code Coverage Reporting -->
+    <coverage includeUncoveredFiles="true"
+              pathCoverage="false"
+              ignoreDeprecatedCodeUnits="true"
+              disableCodeCoverageIgnore="false">
+        <report>
+            <!-- HTML Coverage Report -->
+            <html outputDirectory="coverage/html" lowUpperBound="50" highLowerBound="80"/>
+            
+            <!-- Text Coverage Summary -->
+            <text outputFile="coverage/coverage.txt" showUncoveredFiles="false" showOnlySummary="true"/>
+            
+            <!-- Clover XML for CI/CD -->
+            <clover outputFile="coverage/clover.xml"/>
+            
+            <!-- PHPUnit XML for CI/CD -->
+            <xml outputDirectory="coverage/xml"/>
+        </report>
+    </coverage>
+
+    <!-- Logging Configuration -->
+    <logging>
+        <!-- JUnit XML for CI/CD integration -->
+        <junit outputFile="reports/junit.xml"/>
+        
+        <!-- TestDox for human-readable test descriptions -->
+        <testdoxHtml outputFile="reports/testdox.html"/>
+        <testdoxText outputFile="reports/testdox.txt"/>
+    </logging>
+
+    <!-- PHP Configuration -->
+    <php>
+        <!-- Environment Variables for Testing -->
+        <env name="APP_ENV" value="testing"/>
+        <env name="PHPUNIT_RUNNING" value="true"/>
+        
+        <!-- Disable external services during testing -->
+        <env name="DISABLE_EXTERNAL_SERVICES" value="true"/>
+        
+        <!-- Test-specific configuration -->
+        <env name="MEMORY_STORE_TYPE" value="volatile"/>
+        <env name="ENABLE_CACHE" value="false"/>
+        <env name="LOG_LEVEL" value="debug"/>
+        
+        <!-- OpenAI Test Configuration (use test keys) -->
+        <env name="OPENAI_API_KEY" value="test-key-do-not-use"/>
+        <env name="AZURE_OPENAI_API_KEY" value="test-key-do-not-use"/>
+        
+        <!-- Memory limits for large tests -->
+        <ini name="memory_limit" value="1G"/>
+        <ini name="max_execution_time" value="300"/>
+        
+        <!-- Error reporting -->
+        <ini name="error_reporting" value="E_ALL"/>
+        <ini name="display_errors" value="1"/>
+        <ini name="display_startup_errors" value="1"/>
+    </php>
+
+    <!-- Extensions -->
+    <extensions>
+        <!-- Add PHPUnit extensions here if needed -->
+    </extensions>
+</phpunit> 
