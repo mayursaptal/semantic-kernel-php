@@ -349,6 +349,41 @@ class EventDispatcher
     }
 
     /**
+     * Clears all event listeners (alias for clear)
+     * 
+     * @return self Dispatcher instance for method chaining
+     * @since 1.0.0
+     */
+    public function clearListeners(): self
+    {
+        return $this->clear();
+    }
+
+    /**
+     * Clears listeners for a specific event type
+     * 
+     * @param string $eventType Event type to clear listeners for
+     * @return self Dispatcher instance for method chaining
+     * @since 1.0.0
+     * 
+     * @example
+     * ```php
+     * // Clear listeners for specific event
+     * $dispatcher->clearListenersForEvent('FunctionInvoked');
+     * ```
+     */
+    public function clearListenersForEvent(string $eventType): self
+    {
+        if (isset($this->listeners[$eventType])) {
+            $count = count($this->listeners[$eventType]);
+            unset($this->listeners[$eventType]);
+            $this->logger->debug("Cleared {$count} listeners for event: {$eventType}");
+        }
+        
+        return $this;
+    }
+
+    /**
      * Magic method for debugging output
      * 
      * @return array<string, mixed> Debug information

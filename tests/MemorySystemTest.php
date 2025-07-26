@@ -339,9 +339,9 @@ class MemorySystemTest extends TestCase
         $stats = $this->memoryStore->getStats();
 
         $this->assertIsArray($stats);
-        $this->assertArrayHasKey('collections', $stats);
+        $this->assertArrayHasKey('total_collections', $stats);
         $this->assertArrayHasKey('total_items', $stats);
-        $this->assertEquals(2, $stats['collections']);
+        $this->assertEquals(2, $stats['total_collections']);
         $this->assertEquals(3, $stats['total_items']);
     }
 

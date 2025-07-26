@@ -44,7 +44,6 @@ use SemanticKernel\Memory\VolatileMemoryStore;
 use SemanticKernel\Events\EventDispatcher;
 use SemanticKernel\Events\FunctionInvokedEvent;
 use Psr\Log\NullLogger;
-use Exception;
 
 /**
  * Simple test runner for validating Semantic Kernel functionality

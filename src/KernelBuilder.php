@@ -226,7 +226,19 @@ class KernelBuilder
      */
     public function withRedisMemory(string $host = 'localhost', int $port = 6379, ?string $password = null, int $database = 0): self
     {
-        $this->memoryStore = new RedisMemoryStore($host, $port, $password, $database);
+        $config = [
+            'scheme' => 'tcp',
+            'host' => $host,
+            'port' => $port,
+            'database' => $database
+        ];
+        
+        if ($password !== null) {
+            $config['password'] = $password;
+        }
+        
+        $redisClient = new \Predis\Client($config);
+        $this->memoryStore = new RedisMemoryStore($redisClient);
         return $this;
     }
 

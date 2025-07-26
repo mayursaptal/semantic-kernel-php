@@ -480,7 +480,7 @@ class SemanticKernelTest extends TestCase
         $this->assertTrue($results[0]->isSuccess());
         $this->assertTrue($results[1]->isSuccess());
         $this->assertEquals('Step1: initial', $results[0]->getText());
-        $this->assertStringContains('Step2:', $results[1]->getText());
+        $this->assertStringContainsString('Step2:', $results[1]->getText());
     }
 
     /**
@@ -512,7 +512,7 @@ class SemanticKernelTest extends TestCase
 
         $this->assertFalse($result->isSuccess());
         $this->assertTrue($result->isError());
-        $this->assertStringContains('Test error message', $result->getError());
+        $this->assertStringContainsString('Test error message', $result->getError());
     }
 
     /**
@@ -663,7 +663,7 @@ class SemanticKernelTest extends TestCase
      * @return array<array<mixed>> Test data sets
      * @since 1.0.0
      */
-    public function contextVariableDataProvider(): array
+    public static function contextVariableDataProvider(): array
     {
         return [
             'string_values' => [['key1' => 'value1', 'key2' => 'value2']],

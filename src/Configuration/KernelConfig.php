@@ -382,6 +382,15 @@ class KernelConfig
      */
     private function convertEnvironmentValue(string $value): mixed
     {
+        // Try to parse as JSON first (for arrays/objects)
+        if ((str_starts_with($value, '[') && str_ends_with($value, ']')) ||
+            (str_starts_with($value, '{') && str_ends_with($value, '}'))) {
+            $decoded = json_decode($value, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                return $decoded;
+            }
+        }
+
         // Convert common boolean values
         if (in_array(strtolower($value), ['true', '1', 'yes', 'on'])) {
             return true;
@@ -418,14 +427,27 @@ class KernelConfig
             throw new InvalidArgumentException("Configuration file not found: {$filePath}");
         }
 
-        $content = file_get_contents($filePath);
-        if ($content === false) {
-            throw new InvalidArgumentException("Failed to read configuration file: {$filePath}");
-        }
+        $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
 
-        $data = json_decode($content, true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new InvalidArgumentException("Invalid JSON in configuration file: " . json_last_error_msg());
+        if ($extension === 'php') {
+            // Handle PHP configuration files
+            $data = include $filePath;
+            if (!is_array($data)) {
+                throw new InvalidArgumentException("PHP config file must return an array: {$filePath}");
+            }
+        } elseif ($extension === 'json') {
+            // Handle JSON configuration files
+            $content = file_get_contents($filePath);
+            if ($content === false) {
+                throw new InvalidArgumentException("Failed to read configuration file: {$filePath}");
+            }
+
+            $data = json_decode($content, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw new InvalidArgumentException("Invalid JSON in config file: " . json_last_error_msg());
+            }
+        } else {
+            throw new InvalidArgumentException("Unsupported config file format: {$extension}. Supported formats: json, php");
         }
 
         $this->merge($data);
@@ -495,19 +517,24 @@ class KernelConfig
         // Validate timeouts
         $timeout = $this->get('ai_services.timeout');
         if (!is_int($timeout) || $timeout <= 0) {
-            $errors[] = "AI service timeout must be a positive integer";
+            $errors[] = "AI service timeout must be greater than 0";
         }
 
         // Validate memory configuration
         $vectorDims = $this->get('memory.vector_dimensions');
         if (!is_int($vectorDims) || $vectorDims <= 0) {
-            $errors[] = "Vector dimensions must be a positive integer";
+            $errors[] = "Memory vector dimensions must be greater than 0";
+        }
+
+        $similarityThreshold = $this->get('memory.similarity_threshold');
+        if (!is_numeric($similarityThreshold) || $similarityThreshold < 0 || $similarityThreshold > 1) {
+            $errors[] = "Memory similarity threshold must be between 0 and 1";
         }
 
         // Validate planner configuration
         $maxSteps = $this->get('planner.max_steps');
         if (!is_int($maxSteps) || $maxSteps <= 0) {
-            $errors[] = "Planner max steps must be a positive integer";
+            $errors[] = "Planner max steps must be greater than 0";
         }
 
         return $errors;
