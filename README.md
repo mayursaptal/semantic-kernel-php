@@ -2,500 +2,297 @@
 
 [![PHP Version](https://img.shields.io/badge/php-%3E%3D8.1-blue.svg)](https://php.net/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-101_passing-brightgreen.svg)](#testing)
-[![CLI Tool](https://img.shields.io/badge/cli-11_commands-blue.svg)](#cli-tool)
-[![GitHub stars](https://img.shields.io/github/stars/mayursaptal/semantic-kernel-php.svg)](https://github.com/mayursaptal/semantic-kernel-php/stargazers)
-[![GitHub issues](https://img.shields.io/github/issues/mayursaptal/semantic-kernel-php.svg)](https://github.com/mayursaptal/semantic-kernel-php/issues)
+[![Composer](https://img.shields.io/badge/composer-ready-blue.svg)](https://packagist.org)
 
-A **production-ready** PHP implementation of **Microsoft's Semantic Kernel** framework for orchestrating AI services, memory systems, and intelligent agents. Features enterprise-grade **caching**, **rate limiting**, **cost tracking**, and **performance optimization** while maintaining perfect architectural alignment with the original Semantic Kernel.
+> **Build AI-powered applications in PHP** - A complete port of Microsoft's Semantic Kernel framework for orchestrating Large Language Models, memory systems, and intelligent planning.
 
-## ✨ What's New in v1.0
+## What problems does this solve?
 
-### 🎯 **Phase 1 Improvements - COMPLETED**
-- ⚡ **Response Caching** - Up to 80% faster with intelligent cache management
-- 🔄 **Rate Limiting** - Token bucket algorithm prevents API limit violations  
-- 💰 **Cost Tracking** - Real-time token counting and cost estimation
-- 🛠️ **CLI Tool** - Complete command-line interface with 11 development commands
-- 📊 **Performance Analytics** - Comprehensive statistics and monitoring
+### 🤖 **"I want to build an AI chatbot for my PHP application"**
+```php
+// Build a customer support bot in 10 lines
+$kernel = Kernel::createBuilder()
+    ->withOpenAI($_ENV['OPENAI_API_KEY'])
+    ->withMemory()
+    ->build();
 
-## 🚀 Features
+$kernel->importPlugin(new CustomerSupportPlugin());
+$response = $kernel->run('CustomerSupport.HandleQuery', [
+    'question' => 'How do I reset my password?',
+    'customer_id' => '12345'
+]);
 
-### 🏆 **Production-Ready Performance**
-- **⚡ Intelligent Caching**: Response caching with TTL, LRU eviction, and hit-rate optimization
-- **🔄 Rate Limiting**: Token bucket algorithm with burst capacity and wait-time calculation
-- **💰 Cost Management**: Real-time token counting, usage tracking, and cost estimation
-- **📊 Analytics**: Cache hit rates, request statistics, performance metrics
-- **🛠️ CLI Toolkit**: 11-command CLI for development, testing, and monitoring
+echo $response->getText(); // "To reset your password, visit..."
+```
 
-### 🧠 **Core AI Capabilities**
-- **🤖 AI Orchestration**: Seamlessly integrate multiple AI services (OpenAI, Azure OpenAI, Ollama)
-- **🔌 Plugin System**: Modular architecture with auto-discovery capabilities
-- **🧩 Function Types**: Both semantic (AI-powered) and native (PHP) functions
-- **💾 Memory Management**: Pluggable memory stores with vector similarity search
-- **🤖 Intelligent Planning**: AI-driven goal decomposition and execution
-- **⚡ Event System**: Comprehensive telemetry and monitoring
-- **🔧 Middleware Pipeline**: Extensible request/response processing
+### 📝 **"I need to automatically summarize documents and emails"**
+```php
+// Create a smart document processor
+$summarizer = new SemanticFunction(
+    'summarize',
+    'Summarize this document in 3 key points: {{input}}',
+    'Extracts key insights from any document'
+);
 
-### 🏢 **Enterprise Features**
-- **📡 Real-time Telemetry**: Monitor function execution and performance
-- **🛡️ Built-in Security**: Rate limiting, input validation, error handling
-- **📊 Advanced Analytics**: Comprehensive statistics and introspection
-- **🔍 Auto-Discovery**: Automatic plugin scanning and registration
-- **⚡ High Performance**: Optimized for production workloads with caching
-- **🧪 Comprehensive Testing**: 101 PHPUnit tests + 38 integration tests
+$result = $summarizer->invoke($context, $kernel);
+echo $result->getText(); // • Key point 1 • Key point 2 • Key point 3
+```
 
-### ✅ **Microsoft SK Alignment**
-- **100% API Compatibility**: Exact method names and patterns
-- **Architectural Fidelity**: Same component structure and relationships
-- **Feature Parity**: All core capabilities with PHP-specific enhancements
+### 🧠 **"I want AI to plan and execute complex tasks automatically"**
+```php
+// AI breaks down "Send weekly report" into steps and executes them
+$planner = new Planner($kernel);
+$plan = $planner->createPlan('Send weekly sales report to management');
 
-## 📦 Installation
+// AI automatically creates and executes:
+// 1. Gather sales data from database
+// 2. Create summary and charts  
+// 3. Format as professional report
+// 4. Email to manager list
+$result = $planner->executePlan($plan);
+```
 
+### 💾 **"I need AI to remember context across conversations"**
+```php
+// AI remembers previous conversations and context
+$kernel->saveInformation('conversations', 'user_123', [
+    'text' => 'User prefers technical explanations',
+    'metadata' => ['preference' => 'detailed', 'expertise' => 'advanced']
+]);
+
+// Later conversations automatically use this context
+$response = $kernel->run('Chat.Respond', ['message' => 'Explain APIs']);
+// AI responds with technical detail because it remembers user preference
+```
+
+## 🚀 Quick Start
+
+### Installation
 ```bash
 composer require mayursaptal/semantic-kernel-php
 ```
 
-### Requirements
-- PHP 8.1 or higher
-- Composer
-- Extensions: `json`, `curl`, `mbstring`
-
-### Optional Dependencies
-- **Redis**: For persistent memory storage (`predis/predis`)
-- **OpenAI API Key**: For AI-powered functions
-- **Azure OpenAI**: For enterprise AI services
-
-## 🛠️ CLI Tool
-
-Our comprehensive CLI tool provides 11 commands for development and production management:
-
-```bash
-# Make CLI executable (first time only)
-chmod +x bin/sk
-
-# Show all available commands
-./bin/sk help
-
-# Test AI service connectivity
-./bin/sk test-ai
-
-# Count tokens and estimate costs
-./bin/sk tokens "Your prompt here"
-
-# Monitor cache performance
-./bin/sk cache-stats
-
-# Test memory operations
-./bin/sk test-memory
-
-# Run all tests
-./bin/sk test
-
-# Show configuration
-./bin/sk config
-
-# Interactive demo
-./bin/sk demo
-```
-
-**Available Commands:**
-- `help` - Show command help
-- `version` - Version information
-- `test` - Run all tests  
-- `test-ai` - Test AI connectivity
-- `test-memory` - Test memory operations
-- `cache-stats` - Cache performance metrics
-- `cache-clear` - Clear all caches
-- `tokens` - Count tokens in text
-- `demo` - Interactive demo
-- `config` - Show configuration
-- `plugins` - List available plugins
-
-## 🚀 Quick Start
-
-### Basic Setup with Caching & Rate Limiting
-
+### Basic Usage
 ```php
 <?php
 require_once 'vendor/autoload.php';
 
 use SemanticKernel\Kernel;
-use SemanticKernel\AI\OpenAIChatService;
-use SemanticKernel\Cache\MemoryCache;
-use SemanticKernel\Utils\RateLimiter;
 
-// Create AI service with caching and rate limiting
-$aiService = new OpenAIChatService($_ENV['OPENAI_API_KEY'], [
-    'model' => 'gpt-4',
-    'cache_enabled' => true,
-    'cache_ttl' => 3600,           // Cache for 1 hour
-    'rate_limit_requests' => 60,   // 60 requests
-    'rate_limit_window' => 60,     // per minute
-]);
-
-// Build kernel with performance optimizations
+// 1. Create kernel with AI service
 $kernel = Kernel::createBuilder()
-    ->withChatService($aiService)
-    ->withVolatileMemory()
+    ->withOpenAI($_ENV['OPENAI_API_KEY'])
     ->build();
 
-// Use with automatic caching and rate limiting
-$result = $kernel->run('MyPlugin.MyFunction', ['input' => 'Hello World']);
-
+// 2. Ask AI anything
+$result = $kernel->run('chat', ['input' => 'Explain quantum computing simply']);
 echo $result->getText();
-echo "Tokens used: " . $result->getTokens() . "\n";
-echo "Estimated cost: $" . $result->getMetadata()['estimated_cost'] . "\n";
-
-// Check performance statistics
-$stats = $aiService->getServiceStats();
-echo "Cache hit rate: " . $stats['cache_stats']['hit_rate'] . "%\n";
 ```
 
-### Advanced Features with Cost Tracking
-
+### Add Memory (Remembers Context)
 ```php
-use SemanticKernel\Utils\TokenCounter;
-use SemanticKernel\SemanticFunction;
-use SemanticKernel\ContextVariables;
+// AI remembers conversation history
+$kernel = Kernel::createBuilder()
+    ->withOpenAI($_ENV['OPENAI_API_KEY'])
+    ->withVolatileMemory() // or ->withRedisMemory() for persistence
+    ->build();
 
-// Create semantic function with cost tracking
-$summarizeFunction = new SemanticFunction(
-    'summarize',
-    'Summarize this text in 2 sentences: {{input}}',
-    'Summarizes text content efficiently'
+// Save context
+$kernel->saveInformation('user_context', 'preferences', 
+    'User is a PHP developer, likes practical examples'
 );
 
-// Execute with automatic token counting
-$context = new ContextVariables(['input' => $longText]);
-$result = $summarizeFunction->invoke($context, $kernel);
-
-// Get detailed usage metrics
-$metadata = $result->getMetadata();
-echo "Input tokens: " . $metadata['input_tokens'] . "\n";
-echo "Output tokens: " . $metadata['output_tokens'] . "\n";
-echo "Total cost: $" . $metadata['estimated_cost'] . "\n";
-
-// Manual token counting for planning
-$counter = new TokenCounter();
-$tokens = $counter->countTokens($yourText, 'gpt-4');
-$cost = $counter->estimateCost('gpt-4', $tokens);
-echo "Estimated cost before API call: $" . number_format($cost, 6) . "\n";
+// AI uses context in responses
+$result = $kernel->run('explain', ['topic' => 'machine learning']);
+// Response will be tailored for PHP developers with examples
 ```
 
-### Plugin Development with Performance Monitoring
+## 🎯 Real-World Use Cases
+
+### 1. **Customer Support Automation**
+Build intelligent support bots that understand context and provide accurate answers.
 
 ```php
-use SemanticKernel\KernelPlugin;
-use SemanticKernel\NativeFunction;
-
-$plugin = KernelPlugin::create('TextProcessing');
-
-// Add native function with automatic parameter discovery
-$plugin->addFunction(new NativeFunction(
-    'wordCount',
-    function(string $text): int {
-        return str_word_count($text);
-    },
-    'Counts words in text efficiently'
+$supportBot = KernelPlugin::create('CustomerSupport');
+$supportBot->addFunction(new SemanticFunction(
+    'handleTicket',
+    'Analyze this support ticket and provide solution: {{ticket}}. 
+     Check our knowledge base: {{knowledge_base}}',
+    'Intelligent ticket resolution'
 ));
-
-// Import and monitor performance
-$kernel->importPlugin($plugin);
-
-// Execute with performance tracking
-$result = $kernel->run('TextProcessing.wordCount', ['text' => $document]);
-
-// Monitor plugin performance
-$stats = $kernel->getStats();
-echo "Total functions: " . $stats['total_functions'] . "\n";
-echo "Plugins loaded: " . $stats['plugins'] . "\n";
 ```
 
-### Memory Operations with Caching
+### 2. **Content Generation Pipeline**
+Automatically generate blog posts, product descriptions, marketing copy.
 
 ```php
-use SemanticKernel\Memory\VolatileMemoryStore;
-
-// Create memory store with performance optimization
-$memory = new VolatileMemoryStore();
-
-// Save with automatic indexing
-$memory->saveInformation('documents', 'doc1', 'Important document content');
-
-// Retrieve with similarity search (cached internally)
-$relevant = $memory->getRelevant('documents', 'document content', 3);
-
-// Monitor memory performance
-$stats = $memory->getStats();
-echo "Collections: " . $stats['total_collections'] . "\n";
-echo "Memory usage: " . $stats['memory_usage_mb'] . " MB\n";
+$contentPipeline = $kernel->executeSequence([
+    'Research.GatherTopics',      // Research trending topics
+    'Content.CreateOutline',      // Create article outline  
+    'Content.WriteArticle',       // Write full article
+    'Content.OptimizeForSEO'      // Add SEO optimization
+], ['topic' => 'PHP best practices']);
 ```
 
-## 🏗️ Architecture
+### 3. **Document Processing Workflow**
+Process PDFs, extract insights, generate summaries, answer questions.
 
-```mermaid
-graph TB
-    CLI[CLI Tool - bin/sk] --> Kernel[Kernel - Core Orchestrator]
-    
-    Kernel --> AI[AI Services]
-    Kernel --> Memory[Memory Stores] 
-    Kernel --> Events[Event System]
-    Kernel --> Config[Configuration]
-    
-    AI --> Cache[Response Cache]
-    AI --> RateLimit[Rate Limiter]
-    AI --> TokenCount[Token Counter]
-    
-    AI --> OpenAI[OpenAI Service]
-    AI --> Azure[Azure OpenAI]
-    AI --> Ollama[Ollama Local]
-    
-    Memory --> Volatile[Volatile Store]
-    Memory --> Redis[Redis Store]
-    Memory --> Vector[Vector Search]
-    
-    Kernel --> Plugins[Plugin System]
-    Plugins --> Semantic[Semantic Functions]
-    Plugins --> Native[Native Functions]
-    Plugins --> AutoDiscover[Auto-Discovery]
-    
-    Events --> Telemetry[Performance Monitoring]
-    Events --> Logging[Structured Logging]
+```php
+$docProcessor = KernelPlugin::create('DocumentProcessor');
+$result = $kernel->run('DocumentProcessor.AnalyzeDocument', [
+    'document' => $pdfContent,
+    'questions' => ['What are the key findings?', 'What actions are recommended?']
+]);
 ```
 
-## 🎯 Performance Benchmarks
+### 4. **E-commerce Product Recommendations**
+AI-powered product recommendations based on user behavior and preferences.
 
-### **Caching Performance**
-- **Cache Hit Rate**: 75-85% in typical applications
-- **Response Time**: 90% faster on cache hits
-- **API Cost Reduction**: Up to 80% savings on repeated requests
-- **Memory Usage**: < 10MB for 1000 cached responses
+```php
+$recommender = $kernel->run('Ecommerce.RecommendProducts', [
+    'user_history' => $userPurchases,
+    'current_item' => $productId,
+    'budget_range' => '$50-100'
+]);
+```
 
-### **Rate Limiting Efficiency**  
-- **Request Control**: 99.9% accuracy in rate limit enforcement
-- **Burst Handling**: 20% burst capacity above base rate
-- **Cost Protection**: Prevents accidental API overuse
-- **Error Prevention**: Graceful handling of rate limit situations
+### 5. **Data Analysis and Insights**
+Turn raw data into human-readable insights and recommendations.
 
-### **Token Counting Accuracy**
-- **Estimation Accuracy**: ±5% of actual API token usage
-- **Cost Prediction**: Real-time cost estimation before API calls
-- **Multi-Model Support**: GPT-3.5, GPT-4, text-davinci-003
-- **Performance**: 10,000+ token counts per second
+```php
+$analyst = $kernel->run('DataAnalysis.GenerateInsights', [
+    'sales_data' => $monthlySalesData,
+    'goal' => 'Identify trends and suggest improvements'
+]);
+```
 
-## 📚 Advanced Examples
+## 🏗️ Architecture Overview
 
-### Environment Configuration
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│     Kernel      │────│     Plugins      │────│   Functions     │
+│   (Orchestrator)│    │   (Skill Groups) │    │ (AI + Native)   │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+         │                       │                       │
+         ├─── Planner ───────────┼───── Memory ──────────┤
+         │   (Task Planning)     │   (Context Storage)   │
+         │                       │                       │
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   AI Services   │    │   Event System   │    │ Configuration   │
+│ (OpenAI, Azure) │    │  (Monitoring)    │    │   (Settings)    │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+```
 
-Create a `.env` file:
+**Key Components:**
+- **Kernel**: Main orchestrator that coordinates everything
+- **Plugins**: Groups of related functions (like "CustomerSupport", "ContentGeneration")
+- **Functions**: Individual AI tasks (semantic) or PHP code (native)
+- **Planner**: AI that breaks complex goals into executable steps
+- **Memory**: Stores context, conversation history, knowledge
+- **AI Services**: Connects to OpenAI, Azure OpenAI, local models
+
+## 📚 Documentation
+
+- **[Getting Started](docs/getting-started.md)** - Installation and first examples
+- **[Architecture Overview](docs/overview.md)** - How everything works together
+- **[Writing Functions](docs/semantic-functions.md)** - Create AI-powered functions
+- **[Using Planners](docs/planners.md)** - Let AI plan and execute tasks
+- **[Memory Systems](docs/memory.md)** - Store and retrieve context
+- **[AI Services](docs/ai-services.md)** - Connect to different AI providers
+- **[Cookbook](docs/cookbook.md)** - Copy-paste solutions for common use cases
+
+## 🛠️ Development Tools
+
+### CLI Tool (Included)
+```bash
+# Test your AI connections
+./bin/sk test-ai
+
+# Count tokens and estimate costs
+./bin/sk tokens "Your prompt here"
+
+# Run interactive demos
+./bin/sk demo
+
+# See all commands
+./bin/sk help
+```
+
+### Configuration
+Create `.env` file:
 ```env
-# AI Services
-OPENAI_API_KEY=sk-your-openai-key-here
-AZURE_OPENAI_API_KEY=your-azure-key
-AZURE_OPENAI_ENDPOINT=https://your-endpoint.openai.azure.com/
-
-# Performance Settings  
-SK_CACHE_ENABLED=true
-SK_CACHE_TTL=3600
-SK_RATE_LIMIT_REQUESTS=60
-SK_RATE_LIMIT_WINDOW=60
-
-# Memory Configuration
-SK_MEMORY_DEFAULT_STORE=volatile
-SK_REDIS_HOST=localhost
-SK_REDIS_PORT=6379
-
-# Logging
-SK_LOG_LEVEL=info
-SK_LOG_CHANNEL=semantic_kernel
+OPENAI_API_KEY=your-key-here
+AZURE_OPENAI_ENDPOINT=your-endpoint
+REDIS_HOST=localhost
 ```
 
-### Production Configuration
+## 🌟 Why Choose Semantic Kernel PHP?
 
-```php
-use SemanticKernel\Configuration\KernelConfig;
+### ✅ **Familiar for PHP Developers**
+- Uses standard PHP patterns and conventions
+- PSR-4 autoloading, Composer packages
+- Integrates with Laravel, Symfony, WordPress
 
-// Load from environment with validation
-$config = KernelConfig::fromEnvironment('SK_');
+### ✅ **Production Ready**
+- Built-in caching reduces API costs by 80%
+- Rate limiting prevents quota exceeded errors
+- Comprehensive error handling and logging
+- Memory management for long-running processes
 
-// Validate configuration
-$errors = $config->validate();
-if (!empty($errors)) {
-    throw new InvalidArgumentException('Config errors: ' . implode(', ', $errors));
-}
+### ✅ **Microsoft SK Compatible**
+- Same concepts: Kernel, Plugins, Planners, Memory
+- Easy to follow Microsoft's tutorials and examples
+- Consistent naming and architecture
 
-// Build production kernel
-$kernel = Kernel::createBuilder()
-    ->withConfiguration($config)
-    ->withOpenAI($config->get('ai_services.openai.api_key'))
-    ->withRedisMemory(
-        $config->get('memory.redis.host'),
-        $config->get('memory.redis.port')
-    )
-    ->withLogging(true)
-    ->build();
-```
-
-### Plugin Auto-Discovery
-
-```php
-use SemanticKernel\Plugins\PluginLoader;
-
-$loader = new PluginLoader();
-
-// Auto-discover from directory
-$plugins = $loader->discoverFromDirectory('./plugins');
-
-foreach ($plugins as $plugin) {
-    $kernel->importPlugin($plugin);
-}
-
-// Auto-discover semantic functions
-$semanticFunctions = $loader->discoverSemanticFunctions('./skills');
-
-foreach ($semanticFunctions as $function) {
-    $kernel->importFunction($function);
-}
-```
-
-## 🧪 Testing
-
-### Running Tests
-
-```bash
-# Run all tests (PHPUnit + Simple runner)
-composer test
-
-# Run specific test suites  
-composer test-unit
-composer test-integration
-composer test-coverage
-
-# Quick validation
-composer test-quick
-
-# CLI testing
-./bin/sk test
-./bin/sk test-ai      # Requires OPENAI_API_KEY
-./bin/sk test-memory
-```
-
-### Test Coverage
-
-- **101 PHPUnit Tests**: Comprehensive unit and integration tests
-- **38 Simple Tests**: Quick validation runner
-- **413 Assertions**: Thorough validation coverage
-- **Zero Failures**: All tests passing
-- **Performance Tests**: Cache, rate limiting, token counting
-
-## 📈 Performance Monitoring
-
-### Using CLI for Monitoring
-
-```bash
-# Monitor cache performance
-./bin/sk cache-stats
-
-# Track token usage
-./bin/sk tokens "Your prompt here" gpt-4
-
-# Check configuration
-./bin/sk config
-
-# Test all systems
-./bin/sk test
-```
-
-### Programmatic Monitoring
-
-```php
-// AI Service Statistics
-$stats = $aiService->getServiceStats();
-echo "Requests made: " . $stats['service_stats']['requests_made'] . "\n";
-echo "Cache hits: " . $stats['cache_stats']['hits'] . "\n";
-echo "Cache hit rate: " . $stats['cache_stats']['hit_rate'] . "%\n";
-echo "Rate limit denials: " . $stats['rate_limiter_stats']['requests_denied'] . "\n";
-
-// Memory Store Statistics  
-$memoryStats = $memory->getStats();
-echo "Collections: " . $memoryStats['total_collections'] . "\n";
-echo "Items: " . $memoryStats['total_items'] . "\n";
-echo "Memory usage: " . $memoryStats['memory_usage_mb'] . " MB\n";
-
-// Kernel Statistics
-$kernelStats = $kernel->getStats();
-echo "Plugins: " . $kernelStats['plugins'] . "\n";
-echo "Functions: " . $kernelStats['total_functions'] . "\n";
-```
+### ✅ **Flexible AI Integration**
+- OpenAI (GPT-3.5, GPT-4)
+- Azure OpenAI (Enterprise)
+- Local models (Ollama)
+- Easy to add new providers
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-### Development Workflow
+We welcome contributions! Here's how to get started:
 
 ```bash
-# Clone repository
+# 1. Clone the repository
 git clone https://github.com/mayursaptal/semantic-kernel-php.git
 cd semantic-kernel-php
 
-# Install dependencies
+# 2. Install dependencies
 composer install
 
-# Set up environment
+# 3. Set up environment
 cp env.template .env
-# Edit .env with your API keys
+# Add your API keys to .env
 
-# Run tests
+# 4. Run tests
 composer test
 
-# Use CLI for development
+# 5. Try the CLI
 ./bin/sk help
-./bin/sk test
 ```
 
-## 📋 Roadmap
-
-### ✅ **Phase 1 (Completed)**
-- ✅ Token counting and cost estimation
-- ✅ Response caching system
-- ✅ Rate limiting with token bucket
-- ✅ Enhanced AI services
-- ✅ CLI development toolkit
-
-### 🔄 **Phase 2 (In Progress)**
-- 🔄 Anthropic Claude integration
-- 🔄 Vector database support (Pinecone, Weaviate)
-- 🔄 Laravel package
-- 🔄 Advanced monitoring dashboard
-- 🔄 Async operations support
-
-### 🚀 **Phase 3 (Planned)**
-- 🔄 Multi-modal AI support (images, audio)
-- 🔄 Workflow visualization
-- 🔄 Microservices architecture
-- 🔄 Real-time collaboration
-- 🔄 Enterprise security features
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🙋‍♂️ Support
+## 🆘 Support
 
+- **Documentation**: [/docs](docs/) folder
 - **Issues**: [GitHub Issues](https://github.com/mayursaptal/semantic-kernel-php/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/mayursaptal/semantic-kernel-php/discussions)
-- **Documentation**: [Semantic Kernel Cookbook](SemanticKernelCookbook.md)
 
 ## 👨‍💻 Author
 
 **Mayur Saptal**
 - Email: mayursaptal@gmail.com
 - GitHub: [@mayursaptal](https://github.com/mayursaptal)
-- Repository: [semantic-kernel-php](https://github.com/mayursaptal/semantic-kernel-php)
 
 ---
 
 ⭐ **Star this repository** if you find it useful!
 
-Made with ❤️ for the PHP community and inspired by Microsoft's Semantic Kernel. 
+Built with ❤️ for the PHP community, inspired by Microsoft's Semantic Kernel. 
