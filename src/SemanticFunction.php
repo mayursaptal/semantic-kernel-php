@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace SemanticKernel;
 
 use SemanticKernel\AI\ChatServiceInterface;
+use SemanticKernel\Utils\TokenCounter;
+use SemanticKernel\Kernel;
 use Exception;
 
 /**
@@ -68,12 +70,19 @@ class SemanticFunction
     private array $parameters;
 
     /**
-     * Constructs a new SemanticFunction instance
+     * Token counter for accurate token usage tracking
      * 
-     * @param string $name           Function name identifier
-     * @param string $promptTemplate Prompt template with {{variable}} placeholders
-     * @param string $description    Function description (optional)
-     * @param array  $parameters     Function parameters metadata (optional)
+     * @var TokenCounter
+     */
+    private TokenCounter $tokenCounter;
+
+    /**
+     * Constructs a new semantic function
+     * 
+     * @param string $name            Function name
+     * @param string $promptTemplate  Prompt template with variable placeholders
+     * @param string $description     Function description for planner
+     * @param array  $parameters      Function parameters definition
      * 
      * @since 1.0.0
      */
@@ -87,6 +96,7 @@ class SemanticFunction
         $this->promptTemplate = $promptTemplate;
         $this->description = $description;
         $this->parameters = $parameters;
+        $this->tokenCounter = new TokenCounter();
     }
 
     /**
@@ -121,26 +131,39 @@ class SemanticFunction
     {
         try {
             $chatService = $kernel->getChatService();
-            if (!$chatService) {
+            if ($chatService === null) {
                 throw new Exception('Chat service is required for semantic functions');
             }
 
             $prompt = $this->renderPrompt($context);
             $response = $chatService->generateText($prompt, $context);
 
+            // Calculate actual token counts
+            $inputTokens = $this->tokenCounter->countTokens($prompt, $this->getModelName($chatService));
+            $outputTokens = $this->tokenCounter->countTokens($response, $this->getModelName($chatService));
+            $totalTokens = $inputTokens + $outputTokens;
+
             return FunctionResult::success(
                 $response,
-                0, // TODO: Get actual token count from service
+                $totalTokens,
                 [
                     'function_name' => $this->name,
                     'function_type' => 'semantic',
                     'prompt_template' => $this->promptTemplate,
-                    'rendered_prompt' => $prompt
+                    'rendered_prompt' => $prompt,
+                    'input_tokens' => $inputTokens,
+                    'output_tokens' => $outputTokens,
+                    'estimated_cost' => $this->tokenCounter->estimateCost(
+                        $this->getModelName($chatService),
+                        $inputTokens,
+                        $outputTokens
+                    )
                 ]
             );
         } catch (Exception $e) {
             return FunctionResult::error(
-                "Semantic function '{$this->name}' failed: " . $e->getMessage()
+                "Semantic function '{$this->name}' failed: " . $e->getMessage(),
+                ['function_name' => $this->name, 'function_type' => 'semantic']
             );
         }
     }
@@ -322,5 +345,26 @@ class SemanticFunction
             'parameters_count' => count($this->parameters),
             'has_variables' => preg_match('/\{\{\w+\}\}/', $this->promptTemplate) > 0
         ];
+    }
+
+    /**
+     * Gets the model name from the chat service for token counting
+     * 
+     * @param ChatServiceInterface $chatService Chat service instance
+     * 
+     * @return string Model name for token counting
+     * @since 1.0.0
+     * @internal
+     */
+    private function getModelName(ChatServiceInterface $chatService): string
+    {
+        $className = get_class($chatService);
+        
+        return match (true) {
+            str_contains($className, 'OpenAI') => 'gpt-3.5-turbo',
+            str_contains($className, 'Azure') => 'gpt-4',
+            str_contains($className, 'Ollama') => 'gpt-3.5-turbo', // Default for local models
+            default => 'gpt-3.5-turbo',
+        };
     }
 } 
