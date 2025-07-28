@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "name": "translate",
+  "type": "semantic", 
+  "description": "Translates text from one language to another",
+  "version": "1.0.0",
+  "author": "Mayur Saptal",
+  "plugin": "WritingSkills",
+  "parameters": {
+    "input": {
+      "description": "The text content to translate",
+      "type": "string",
+      "required": true
+    },
+    "target_language": {
+      "description": "The target language for translation",
+      "type": "string",
+      "required": true,
+      "default": "English"
+    }
+  },
+  "execution_settings": {
+    "max_tokens": 500,
+    "temperature": 0.1,
+    "top_p": 1.0
+  },
+  "prompt_file": "skprompt.txt",
+  "tags": ["translation", "language", "writing"]
+} 

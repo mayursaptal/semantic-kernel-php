@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "name": "summarize",
+  "type": "semantic",
+  "description": "Summarizes text content into concise key points",
+  "version": "1.0.0",
+  "author": "Mayur Saptal",
+  "plugin": "WritingSkills",
+  "parameters": {
+    "input": {
+      "description": "The text content to summarize",
+      "type": "string",
+      "required": true
+    }
+  },
+  "execution_settings": {
+    "max_tokens": 150,
+    "temperature": 0.3,
+    "top_p": 1.0
+  },
+  "prompt_file": "skprompt.txt",
+  "tags": ["summarization", "text-processing", "writing"]
+} 
