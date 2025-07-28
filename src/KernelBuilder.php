@@ -8,6 +8,7 @@ use SemanticKernel\AI\ChatServiceInterface;
 use SemanticKernel\AI\OpenAIChatService;
 use SemanticKernel\AI\AzureOpenAIService;
 use SemanticKernel\AI\OllamaLocalService;
+use SemanticKernel\AI\GeminiChatService;
 use SemanticKernel\Memory\MemoryStoreInterface;
 use SemanticKernel\Memory\VolatileMemoryStore;
 use SemanticKernel\Memory\RedisMemoryStore;
@@ -168,6 +169,28 @@ class KernelBuilder
     public function withOllama(string $model, ?string $baseUrl = null): self
     {
         $this->chatService = new OllamaLocalService($model, $baseUrl ?? 'http://localhost:11434');
+        return $this;
+    }
+
+    /**
+     * Configures the builder with Google Gemini chat service
+     * 
+     * @param string      $apiKey Google API key for Gemini
+     * @param string|null $model  Optional model name (default: gemini-1.5-flash)
+     * 
+     * @return self Builder instance for method chaining
+     * @since 1.0.0
+     * 
+     * @example
+     * ```php
+     * $builder->withGemini('your-google-api-key', 'gemini-1.5-pro');
+     * ```
+     */
+    public function withGemini(string $apiKey, ?string $model = null): self
+    {
+        $this->chatService = new GeminiChatService($apiKey, [
+            'model' => $model ?? 'gemini-1.5-flash'
+        ]);
         return $this;
     }
 
