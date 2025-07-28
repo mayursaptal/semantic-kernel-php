@@ -22,8 +22,11 @@ Think of it as giving your AI both short-term and long-term memory.
 - Perfect for: Session data, temporary context
 
 ```php
+// Works with any AI service
 $kernel = Kernel::createBuilder()
-    ->withOpenAI($_ENV['OPENAI_API_KEY'])
+    ->withOpenAI($_ENV['OPENAI_API_KEY'])     // or
+    ->withGemini($_ENV['GOOGLE_API_KEY'])     // or
+    ->withAzureOpenAI($_ENV['AZURE_API_KEY'], $_ENV['AZURE_ENDPOINT'], $_ENV['AZURE_DEPLOYMENT'])
     ->withVolatileMemory()
     ->build();
 ```
@@ -35,8 +38,9 @@ $kernel = Kernel::createBuilder()
 - Perfect for: User preferences, conversation history
 
 ```php
+// Works with any AI service
 $kernel = Kernel::createBuilder()
-    ->withOpenAI($_ENV['OPENAI_API_KEY'])
+    ->withGemini($_ENV['GOOGLE_API_KEY'])     // Fast responses with memory
     ->withRedisMemory('localhost', 6379)
     ->build();
 ```

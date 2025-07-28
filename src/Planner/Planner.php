@@ -81,16 +81,16 @@ class Planner
     /**
      * Constructs a new Planner instance
      * 
-     * @param Kernel               $kernel      Kernel instance with loaded plugins
-     * @param ChatServiceInterface $chatService AI service for plan generation  
-     * @param int                  $maxSteps    Maximum steps in a plan (default: 10)
+     * @param Kernel                     $kernel      Kernel instance with loaded plugins
+     * @param ChatServiceInterface|null $chatService AI service for plan generation (optional, uses kernel's service if null)
+     * @param int                        $maxSteps    Maximum steps in a plan (default: 10)
      * 
      * @since 1.0.0
      */
-    public function __construct(Kernel $kernel, ChatServiceInterface $chatService, int $maxSteps = 10)
+    public function __construct(Kernel $kernel, ?ChatServiceInterface $chatService = null, int $maxSteps = 10)
     {
         $this->kernel = $kernel;
-        $this->chatService = $chatService;
+        $this->chatService = $chatService ?? $kernel->getChatService();
         $this->maxSteps = $maxSteps;
         $this->buildAvailableFunctionsList();
         $this->initializePlannerPrompt();

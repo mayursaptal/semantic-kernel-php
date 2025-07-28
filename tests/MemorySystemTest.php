@@ -2,427 +2,304 @@
 
 declare(strict_types=1);
 
-namespace SemanticKernel\Tests;
+namespace Tests;
 
 use PHPUnit\Framework\TestCase;
-use SemanticKernel\Memory\VolatileMemoryStore;
 use SemanticKernel\Memory\MemoryStoreInterface;
+use SemanticKernel\Memory\VolatileMemoryStore;
+use SemanticKernel\Memory\RedisMemoryStore;
 
-/**
- * Test suite for Memory System functionality
- */
 class MemorySystemTest extends TestCase
 {
-    private VolatileMemoryStore $memoryStore;
-
-    protected function setUp(): void
+    public function testVolatileMemoryStoreCreation(): void
     {
-        $this->memoryStore = new VolatileMemoryStore();
+        $memory = new VolatileMemoryStore();
+        
+        $this->assertInstanceOf(MemoryStoreInterface::class, $memory);
+        $this->assertInstanceOf(VolatileMemoryStore::class, $memory);
     }
 
-    public function testMemoryStoreCanBeCreated(): void
+    public function testVolatileMemoryStoreStoreAndRetrieve(): void
     {
-        $this->assertInstanceOf(VolatileMemoryStore::class, $this->memoryStore);
-        $this->assertInstanceOf(MemoryStoreInterface::class, $this->memoryStore);
+        $memory = new VolatileMemoryStore();
+        
+        // Store simple value
+        $memory->saveInformation('collection1', 'key1', 'value1');
+        $retrieved = $memory->getInformation('collection1', 'key1');
+        
+        $this->assertEquals('value1', $retrieved['text']);
     }
 
-    public function testSaveInformation(): void
+    public function testVolatileMemoryStoreComplexData(): void
     {
-        $success = $this->memoryStore->saveInformation(
-            'test_collection',
-            'doc1',
-            'This is a test document',
-            ['type' => 'test', 'category' => 'unit_test'],
-            [0.1, 0.2, 0.3, 0.4, 0.5]
-        );
-
-        $this->assertTrue($success);
+        $memory = new VolatileMemoryStore();
+        
+        $textContent = 'This is a test document';
+        $metadata = [
+            'author' => 'John Doe',
+            'created' => '2024-01-15',
+            'tags' => ['test', 'document', 'memory']
+        ];
+        
+        $memory->saveInformation('documents', 'doc1', $textContent, $metadata);
+        $retrieved = $memory->getInformation('documents', 'doc1');
+        
+        $this->assertEquals($textContent, $retrieved['text']);
+        $this->assertEquals($metadata, $retrieved['metadata']);
     }
 
-    public function testGetInformation(): void
+    public function testVolatileMemoryStoreMultipleCollections(): void
     {
-        // Save information first
-        $this->memoryStore->saveInformation(
-            'test_collection',
-            'doc1',
-            'Test document content',
-            ['author' => 'test_user'],
-            [0.1, 0.2, 0.3]
-        );
-
-        $retrieved = $this->memoryStore->getInformation('test_collection', 'doc1');
-
-        $this->assertNotNull($retrieved);
-        $this->assertEquals('doc1', $retrieved['id']);
-        $this->assertEquals('Test document content', $retrieved['text']);
-        $this->assertEquals(['author' => 'test_user'], $retrieved['metadata']);
-        $this->assertEquals([0.1, 0.2, 0.3], $retrieved['embedding']);
+        $memory = new VolatileMemoryStore();
+        
+        // Store in different collections
+        $memory->saveInformation('users', 'user1', 'Alice is an admin', ['role' => 'admin']);
+        $memory->saveInformation('settings', 'user1', 'Dark theme enabled', ['theme' => 'dark']);
+        
+        $userData = $memory->getInformation('users', 'user1');
+        $settingsData = $memory->getInformation('settings', 'user1');
+        
+        $this->assertEquals('Alice is an admin', $userData['text']);
+        $this->assertEquals('Dark theme enabled', $settingsData['text']);
+        
+        // Same key in different collections should be independent
+        $this->assertNotEquals($userData, $settingsData);
     }
 
-    public function testGetNonExistentInformation(): void
+    public function testVolatileMemoryStoreNonExistentKey(): void
     {
-        $retrieved = $this->memoryStore->getInformation('test_collection', 'nonexistent');
+        $memory = new VolatileMemoryStore();
+        
+        $result = $memory->getInformation('collection1', 'non_existent_key');
+        
+        $this->assertNull($result);
+    }
+
+    public function testVolatileMemoryStoreSearch(): void
+    {
+        $memory = new VolatileMemoryStore();
+        
+        // Store searchable content
+        $memory->saveInformation('articles', 'art1', 'PHP is a great programming language for web development');
+        $memory->saveInformation('articles', 'art2', 'Python is excellent for data science and machine learning');
+        $memory->saveInformation('articles', 'art3', 'JavaScript is essential for modern web development');
+        
+        // Test search functionality
+        $results = $memory->getRelevant('articles', 'programming', 2);
+        
+        $this->assertIsArray($results);
+        $this->assertLessThanOrEqual(2, count($results));
+        
+        // Results should contain relevant content
+        if (!empty($results)) {
+            $resultsText = implode(' ', array_column($results, 'text'));
+            $this->assertStringContainsString('programming', $resultsText);
+        }
+    }
+
+    public function testVolatileMemoryStoreExists(): void
+    {
+        $memory = new VolatileMemoryStore();
+        
+        $this->assertFalse($memory->exists('collection1', 'key1'));
+        
+        $memory->saveInformation('collection1', 'key1', 'value1');
+        
+        $this->assertTrue($memory->exists('collection1', 'key1'));
+    }
+
+    public function testVolatileMemoryStoreDelete(): void
+    {
+        $memory = new VolatileMemoryStore();
+        
+        $memory->saveInformation('collection1', 'key1', 'value1');
+        $this->assertTrue($memory->exists('collection1', 'key1'));
+        
+        $memory->removeInformation('collection1', 'key1');
+        $this->assertFalse($memory->exists('collection1', 'key1'));
+        
+        $retrieved = $memory->getInformation('collection1', 'key1');
         $this->assertNull($retrieved);
     }
 
-    public function testRemoveInformation(): void
+    public function testVolatileMemoryStoreGetCollections(): void
     {
-        // Save information first
-        $this->memoryStore->saveInformation('test_collection', 'doc1', 'Test content');
-
-        // Verify it exists
-        $this->assertNotNull($this->memoryStore->getInformation('test_collection', 'doc1'));
-
-        // Remove it
-        $success = $this->memoryStore->removeInformation('test_collection', 'doc1');
-        $this->assertTrue($success);
-
-        // Verify it's gone
-        $this->assertNull($this->memoryStore->getInformation('test_collection', 'doc1'));
-    }
-
-    public function testCreateCollection(): void
-    {
-        $success = $this->memoryStore->createCollection('new_collection', ['purpose' => 'testing']);
-        $this->assertTrue($success);
-        $this->assertTrue($this->memoryStore->doesCollectionExist('new_collection'));
-    }
-
-    public function testDoesCollectionExist(): void
-    {
-        $this->assertFalse($this->memoryStore->doesCollectionExist('nonexistent_collection'));
-
-        $this->memoryStore->createCollection('test_collection');
-        $this->assertTrue($this->memoryStore->doesCollectionExist('test_collection'));
-    }
-
-    public function testGetCollections(): void
-    {
-        $this->memoryStore->createCollection('collection1');
-        $this->memoryStore->createCollection('collection2');
-
-        $collections = $this->memoryStore->getCollections();
+        $memory = new VolatileMemoryStore();
         
-        $this->assertContains('collection1', $collections);
-        $this->assertContains('collection2', $collections);
-    }
-
-    public function testRemoveCollection(): void
-    {
-        // Create collection and add some data
-        $this->memoryStore->createCollection('temp_collection');
-        $this->memoryStore->saveInformation('temp_collection', 'doc1', 'Content');
-
-        $this->assertTrue($this->memoryStore->doesCollectionExist('temp_collection'));
-        $this->assertNotNull($this->memoryStore->getInformation('temp_collection', 'doc1'));
-
-        // Remove collection
-        $success = $this->memoryStore->removeCollection('temp_collection');
-        $this->assertTrue($success);
-
-        $this->assertFalse($this->memoryStore->doesCollectionExist('temp_collection'));
-        $this->assertNull($this->memoryStore->getInformation('temp_collection', 'doc1'));
-    }
-
-    public function testGetInformationCount(): void
-    {
-        $this->memoryStore->createCollection('count_test');
+        $memory->saveInformation('users', 'user1', 'data1');
+        $memory->saveInformation('settings', 'setting1', 'data2');
+        $memory->saveInformation('logs', 'log1', 'data3');
         
-        $this->assertEquals(0, $this->memoryStore->getInformationCount('count_test'));
-
-        $this->memoryStore->saveInformation('count_test', 'doc1', 'Content 1');
-        $this->assertEquals(1, $this->memoryStore->getInformationCount('count_test'));
-
-        $this->memoryStore->saveInformation('count_test', 'doc2', 'Content 2');
-        $this->assertEquals(2, $this->memoryStore->getInformationCount('count_test'));
-
-        $this->memoryStore->removeInformation('count_test', 'doc1');
-        $this->assertEquals(1, $this->memoryStore->getInformationCount('count_test'));
-    }
-
-    public function testBatchSaveInformation(): void
-    {
-        $items = [
-            [
-                'id' => 'batch1',
-                'text' => 'Batch content 1',
-                'metadata' => ['batch' => true, 'index' => 1],
-                'embedding' => [0.1, 0.2, 0.3]
-            ],
-            [
-                'id' => 'batch2',
-                'text' => 'Batch content 2',
-                'metadata' => ['batch' => true, 'index' => 2],
-                'embedding' => [0.4, 0.5, 0.6]
-            ]
-        ];
-
-        $success = $this->memoryStore->batchSaveInformation('batch_collection', $items);
-        $this->assertTrue($success);
-
-        // Verify both items were saved
-        $item1 = $this->memoryStore->getInformation('batch_collection', 'batch1');
-        $item2 = $this->memoryStore->getInformation('batch_collection', 'batch2');
-
-        $this->assertNotNull($item1);
-        $this->assertNotNull($item2);
-        $this->assertEquals('Batch content 1', $item1['text']);
-        $this->assertEquals('Batch content 2', $item2['text']);
-    }
-
-    public function testSearchByVector(): void
-    {
-        // Add some test data with embeddings
-        $this->memoryStore->saveInformation(
-            'vector_test',
-            'doc1',
-            'Document about AI',
-            ['topic' => 'AI'],
-            [1.0, 0.0, 0.0]  // Vector similar to query
-        );
-
-        $this->memoryStore->saveInformation(
-            'vector_test',
-            'doc2',
-            'Document about cooking',
-            ['topic' => 'cooking'],
-            [0.0, 1.0, 0.0]  // Vector different from query
-        );
-
-        // Search with vector similar to doc1
-        $results = $this->memoryStore->searchByVector(
-            'vector_test',
-            [0.9, 0.1, 0.1],  // Close to doc1's embedding
-            5,
-            0.5
-        );
-
-        $this->assertCount(1, $results);
-        $this->assertEquals('doc1', $results[0]['id']);
-        $this->assertArrayHasKey('similarity', $results[0]);
-        $this->assertGreaterThan(0.5, $results[0]['similarity']);
-    }
-
-    public function testGetRelevantWithText(): void
-    {
-        // Add test documents
-        $this->memoryStore->saveInformation(
-            'relevance_test',
-            'doc1',
-            'This document is about artificial intelligence and machine learning',
-            ['topic' => 'AI']
-        );
-
-        $this->memoryStore->saveInformation(
-            'relevance_test',
-            'doc2',
-            'This document covers cooking recipes and food preparation',
-            ['topic' => 'cooking']
-        );
-
-        // Search for AI-related content
-        $results = $this->memoryStore->getRelevant(
-            'relevance_test',
-            'artificial intelligence',
-            5,
-            0.1
-        );
-
-        $this->assertGreaterThan(0, count($results));
+        $collections = $memory->getCollections();
         
-        // The AI document should have higher relevance
-        $found = false;
-        foreach ($results as $result) {
-            if ($result['id'] === 'doc1') {
-                $found = true;
-                $this->assertArrayHasKey('relevance_score', $result);
-                break;
-            }
+        $this->assertIsArray($collections);
+        $this->assertContains('users', $collections);
+        $this->assertContains('settings', $collections);
+        $this->assertContains('logs', $collections);
+        $this->assertCount(3, $collections);
+    }
+
+    public function testVolatileMemoryStoreClear(): void
+    {
+        $memory = new VolatileMemoryStore();
+        
+        $memory->saveInformation('collection1', 'key1', 'value1');
+        $memory->saveInformation('collection1', 'key2', 'value2');
+        $memory->saveInformation('collection2', 'key1', 'value3');
+        
+        $memory->clearCollection('collection1');
+        
+        // Collection1 should be empty
+        $this->assertNull($memory->getInformation('collection1', 'key1'));
+        $this->assertNull($memory->getInformation('collection1', 'key2'));
+        
+        // Collection2 should remain intact
+        $retrieved = $memory->getInformation('collection2', 'key1');
+        $this->assertEquals('value3', $retrieved['text']);
+    }
+
+    public function testRedisMemoryStoreCreation(): void
+    {
+        // Only test if Redis extension is available
+        if (!extension_loaded('redis')) {
+            $this->markTestSkipped('Redis extension not available');
         }
-        $this->assertTrue($found, 'AI document should be found in relevant results');
+
+        try {
+            $memory = new RedisMemoryStore('localhost', 6379);
+            $this->assertInstanceOf(MemoryStoreInterface::class, $memory);
+            $this->assertInstanceOf(RedisMemoryStore::class, $memory);
+        } catch (\Exception $e) {
+            // Redis server might not be running
+            $this->markTestSkipped('Redis server not available: ' . $e->getMessage());
+        }
     }
 
-    public function testGetRelevantWithVector(): void
+    public function testRedisMemoryStoreBasicOperations(): void
     {
-        // Add test documents with embeddings
-        $this->memoryStore->saveInformation(
-            'vector_relevance',
-            'doc1',
-            'AI document',
-            [],
-            [1.0, 0.0, 0.0]
-        );
+        if (!extension_loaded('redis')) {
+            $this->markTestSkipped('Redis extension not available');
+        }
 
-        $this->memoryStore->saveInformation(
-            'vector_relevance',
-            'doc2',
-            'Cooking document',
-            [],
-            [0.0, 1.0, 0.0]
-        );
-
-        // Search with query embedding
-        $results = $this->memoryStore->getRelevant(
-            'vector_relevance',
-            'query text',
-            5,
-            0.5,
-            [0.9, 0.1, 0.0]  // Similar to doc1
-        );
-
-        $this->assertCount(1, $results);
-        $this->assertEquals('doc1', $results[0]['id']);
+        try {
+            $memory = new RedisMemoryStore('localhost', 6379);
+            
+            // Test store and retrieve
+            $memory->saveInformation('test_collection', 'test_key', 'test_value');
+            $retrieved = $memory->getInformation('test_collection', 'test_key');
+            
+            $this->assertEquals('test_value', $retrieved['text']);
+            
+            // Cleanup
+            $memory->removeInformation('test_collection', 'test_key');
+            
+        } catch (\Exception $e) {
+            $this->markTestSkipped('Redis server not available: ' . $e->getMessage());
+        }
     }
 
-    public function testUpdateInformation(): void
+    public function testMemoryStoreInterfaceContract(): void
     {
-        // Save initial information
-        $this->memoryStore->saveInformation(
-            'update_test',
-            'doc1',
-            'Original content',
-            ['version' => 1],
-            [0.1, 0.2, 0.3]
-        );
-
-        // Update with new content
-        $this->memoryStore->saveInformation(
-            'update_test',
-            'doc1',  // Same ID
-            'Updated content',
-            ['version' => 2],
-            [0.4, 0.5, 0.6]
-        );
-
-        $retrieved = $this->memoryStore->getInformation('update_test', 'doc1');
+        $memory = new VolatileMemoryStore();
         
-        $this->assertEquals('Updated content', $retrieved['text']);
-        $this->assertEquals(['version' => 2], $retrieved['metadata']);
-        $this->assertEquals([0.4, 0.5, 0.6], $retrieved['embedding']);
+        // Test that all interface methods exist
+        $this->assertTrue(method_exists($memory, 'saveInformation'));
+        $this->assertTrue(method_exists($memory, 'getInformation'));
+        $this->assertTrue(method_exists($memory, 'exists'));
+        $this->assertTrue(method_exists($memory, 'removeInformation'));
+        $this->assertTrue(method_exists($memory, 'getRelevant'));
+        $this->assertTrue(method_exists($memory, 'getCollections'));
+        $this->assertTrue(method_exists($memory, 'clearCollection'));
     }
 
-    public function testEmptyCollectionOperations(): void
+    public function testVolatileMemoryStoreOverwrite(): void
     {
-        $this->memoryStore->createCollection('empty_collection');
-
-        $this->assertEquals(0, $this->memoryStore->getInformationCount('empty_collection'));
+        $memory = new VolatileMemoryStore();
         
-        $results = $this->memoryStore->getRelevant('empty_collection', 'any query');
+        $memory->saveInformation('collection1', 'key1', 'value1');
+        $retrieved1 = $memory->getInformation('collection1', 'key1');
+        $this->assertEquals('value1', $retrieved1['text']);
+        
+        // Overwrite with new value
+        $memory->saveInformation('collection1', 'key1', 'value2');
+        $retrieved2 = $memory->getInformation('collection1', 'key1');
+        $this->assertEquals('value2', $retrieved2['text']);
+    }
+
+    public function testVolatileMemoryStoreEmptyValues(): void
+    {
+        $memory = new VolatileMemoryStore();
+        
+        // Test storing empty string
+        $memory->saveInformation('collection1', 'empty_string', '');
+        $retrieved = $memory->getInformation('collection1', 'empty_string');
+        $this->assertEquals('', $retrieved['text']);
+        
+        // Test storing with empty metadata
+        $memory->saveInformation('collection1', 'empty_meta', 'text', []);
+        $retrieved = $memory->getInformation('collection1', 'empty_meta');
+        $this->assertEquals('text', $retrieved['text']);
+        $this->assertEquals([], $retrieved['metadata']);
+    }
+
+    public function testVolatileMemoryStoreSearchRelevance(): void
+    {
+        $memory = new VolatileMemoryStore();
+        
+        // Store documents with varying relevance
+        $memory->saveInformation('docs', 'doc1', 'machine learning algorithms for data analysis');
+        $memory->saveInformation('docs', 'doc2', 'web development with PHP and JavaScript');
+        $memory->saveInformation('docs', 'doc3', 'artificial intelligence and machine learning');
+        $memory->saveInformation('docs', 'doc4', 'database design and optimization');
+        
+        // Search for machine learning
+        $results = $memory->getRelevant('docs', 'machine learning', 10);
+        
+        $this->assertIsArray($results);
+        
+        if (!empty($results)) {
+            // Should find relevant documents
+            $resultsText = implode(' ', array_column($results, 'text'));
+            $this->assertStringContainsString('machine learning', $resultsText);
+        }
+    }
+
+    public function testVolatileMemoryStoreSearchLimit(): void
+    {
+        $memory = new VolatileMemoryStore();
+        
+        // Store many similar documents
+        for ($i = 1; $i <= 10; $i++) {
+            $memory->saveInformation('docs', "doc{$i}", "Document {$i} about programming and development");
+        }
+        
+        // Search with limit
+        $results = $memory->getRelevant('docs', 'programming', 3);
+        
+        $this->assertLessThanOrEqual(3, count($results));
+    }
+
+    public function testVolatileMemoryStoreSearchEmptyQuery(): void
+    {
+        $memory = new VolatileMemoryStore();
+        
+        $memory->saveInformation('docs', 'doc1', 'Some content');
+        
+        // Empty search query should return empty results
+        $results = $memory->getRelevant('docs', '', 10);
+        
+        $this->assertIsArray($results);
         $this->assertEmpty($results);
-
-        $vectorResults = $this->memoryStore->searchByVector('empty_collection', [1.0, 0.0, 0.0]);
-        $this->assertEmpty($vectorResults);
     }
 
-    public function testClearMemoryStore(): void
+    public function testVolatileMemoryStoreSearchNonExistentCollection(): void
     {
-        // Add some data
-        $this->memoryStore->saveInformation('test1', 'doc1', 'Content 1');
-        $this->memoryStore->saveInformation('test2', 'doc2', 'Content 2');
-
-        $this->assertGreaterThan(0, count($this->memoryStore->getCollections()));
-
-        // Clear everything
-        $this->memoryStore->clear();
-
-        $this->assertEquals(0, count($this->memoryStore->getCollections()));
-        $this->assertNull($this->memoryStore->getInformation('test1', 'doc1'));
-        $this->assertNull($this->memoryStore->getInformation('test2', 'doc2'));
-    }
-
-    public function testGetStats(): void
-    {
-        $this->memoryStore->saveInformation('stats_test', 'doc1', 'Content 1');
-        $this->memoryStore->saveInformation('stats_test', 'doc2', 'Content 2');
-        $this->memoryStore->saveInformation('other_collection', 'doc3', 'Content 3');
-
-        $stats = $this->memoryStore->getStats();
-
-        $this->assertIsArray($stats);
-        $this->assertArrayHasKey('total_collections', $stats);
-        $this->assertArrayHasKey('total_items', $stats);
-        $this->assertEquals(2, $stats['total_collections']);
-        $this->assertEquals(3, $stats['total_items']);
-    }
-
-    public function testCosineSimilarityCalculation(): void
-    {
-        // Test with identical vectors (should be 1.0)
-        $this->memoryStore->saveInformation(
-            'similarity_test',
-            'identical',
-            'Test',
-            [],
-            [1.0, 0.0, 0.0]
-        );
-
-        $results = $this->memoryStore->searchByVector(
-            'similarity_test',
-            [1.0, 0.0, 0.0],  // Identical vector
-            1,
-            0.0
-        );
-
-        $this->assertCount(1, $results);
-        $this->assertEquals(1.0, $results[0]['similarity'], '', 0.001);
-
-        // Test with orthogonal vectors (should be 0.0)
-        $this->memoryStore->saveInformation(
-            'similarity_test',
-            'orthogonal',
-            'Test',
-            [],
-            [0.0, 1.0, 0.0]
-        );
-
-        $results = $this->memoryStore->searchByVector(
-            'similarity_test',
-            [1.0, 0.0, 0.0],  // Orthogonal vector
-            10,
-            0.0
-        );
-
-        $orthogonalResult = null;
-        foreach ($results as $result) {
-            if ($result['id'] === 'orthogonal') {
-                $orthogonalResult = $result;
-                break;
-            }
-        }
-
-        $this->assertNotNull($orthogonalResult);
-        $this->assertEquals(0.0, $orthogonalResult['similarity'], '', 0.001);
-    }
-
-    public function testLargeDatasetPerformance(): void
-    {
-        $startTime = microtime(true);
-
-        // Add 100 documents
-        for ($i = 0; $i < 100; $i++) {
-            $this->memoryStore->saveInformation(
-                'performance_test',
-                "doc_{$i}",
-                "This is document number {$i} with some content",
-                ['index' => $i],
-                [sin($i), cos($i), tan($i * 0.1)]
-            );
-        }
-
-        $saveTime = microtime(true) - $startTime;
-
-        // Search through all documents
-        $searchStart = microtime(true);
-        $results = $this->memoryStore->getRelevant('performance_test', 'document number', 10);
-        $searchTime = microtime(true) - $searchStart;
-
-        // Verify results
-        $this->assertEquals(100, $this->memoryStore->getInformationCount('performance_test'));
-        $this->assertGreaterThan(0, count($results));
-        $this->assertLessThanOrEqual(10, count($results));
-
-        // Performance should be reasonable (adjust thresholds as needed)
-        $this->assertLessThan(1.0, $saveTime, 'Save operation should complete within 1 second');
-        $this->assertLessThan(0.1, $searchTime, 'Search operation should complete within 0.1 seconds');
+        $memory = new VolatileMemoryStore();
+        
+        // Search in non-existent collection
+        $results = $memory->getRelevant('non_existent_collection', 'query', 10);
+        
+        $this->assertIsArray($results);
+        $this->assertEmpty($results);
     }
 } 

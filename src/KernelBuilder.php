@@ -121,7 +121,14 @@ class KernelBuilder
      */
     public function withOpenAI(string $apiKey, ?string $model = null): self
     {
-        $this->chatService = new OpenAIChatService($apiKey, $model ?? 'gpt-3.5-turbo');
+        $options = [];
+        if ($model !== null) {
+            $options['model'] = $model;
+        } else {
+            $options['model'] = 'gpt-3.5-turbo';
+        }
+        
+        $this->chatService = new OpenAIChatService($apiKey, $options);
         return $this;
     }
 

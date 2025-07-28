@@ -78,10 +78,15 @@ class MemoryCache implements CacheInterface
      * @param int    $ttl   Time to live in seconds (0 = no expiration)
      * 
      * @return bool True if item was stored successfully
+     * @throws \InvalidArgumentException If key is empty
      * @since 1.0.0
      */
     public function set(string $key, mixed $value, int $ttl = 0): bool
     {
+        if (empty($key)) {
+            throw new \InvalidArgumentException('Cache key cannot be empty');
+        }
+
         $this->evictExpired();
         $this->ensureCapacity();
 
@@ -332,6 +337,52 @@ class MemoryCache implements CacheInterface
         }
 
         return round(($this->stats['hits'] / $total) * 100, 2);
+    }
+
+    /**
+     * Get the number of items in cache
+     * 
+     * @return int Number of cached items
+     * @since 1.0.0
+     */
+    public function size(): int
+    {
+        $this->evictExpired();
+        return count($this->cache);
+    }
+
+    /**
+     * Get all cache keys
+     * 
+     * @return array<string> Array of cache keys
+     * @since 1.0.0
+     */
+    public function keys(): array
+    {
+        $this->evictExpired();
+        return array_keys($this->cache);
+    }
+
+    /**
+     * Get cache statistics
+     * 
+     * @return array<string, mixed> Cache statistics including hits, misses, etc.
+     * @since 1.0.0
+     */
+    public function getStatistics(): array
+    {
+        return [
+            'hits' => $this->stats['hits'],
+            'misses' => $this->stats['misses'],
+            'writes' => $this->stats['sets'], // Alias for backwards compatibility
+            'sets' => $this->stats['sets'],
+            'deletes' => $this->stats['deletes'],
+            'evictions' => $this->stats['evictions'],
+            'hit_rate' => $this->calculateHitRate(),
+            'size' => $this->size(),
+            'max_items' => $this->maxItems,
+            'memory_usage' => $this->calculateMemoryUsage(),
+        ];
     }
 
     /**

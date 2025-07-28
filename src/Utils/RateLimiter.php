@@ -85,8 +85,22 @@ class RateLimiter
      * $limiter = new RateLimiter(60, 60, 1.2);
      * ```
      */
-    public function __construct(int $maxRequests, int $timeWindow, float $burstRatio = 1.0)
+    public function __construct(int $maxRequests, int $timeWindow, ?float $burstRatio = 1.0)
     {
+        if ($maxRequests <= 0) {
+            throw new \InvalidArgumentException('Max requests must be greater than 0');
+        }
+        
+        if ($timeWindow <= 0) {
+            throw new \InvalidArgumentException('Time window must be greater than 0');
+        }
+        
+        $burstRatio = $burstRatio ?? 1.0;
+        
+        if ($burstRatio <= 0) {
+            throw new \InvalidArgumentException('Burst ratio must be greater than 0');
+        }
+
         $this->maxTokens = (int) ceil($maxRequests * $burstRatio);
         $this->refillRate = $maxRequests / $timeWindow;
         $this->tokens = $this->maxTokens;
@@ -258,6 +272,69 @@ class RateLimiter
             $this->tokens = min($this->maxTokens, $this->tokens + $tokensToAdd);
             $this->lastRefill = $now;
         }
+    }
+
+    /**
+     * Alias for allowRequest() method
+     * 
+     * @param int $tokensRequired Number of tokens required (default: 1)
+     * 
+     * @return bool True if request is allowed, false otherwise
+     * @since 1.0.0
+     */
+    public function allow(int $tokensRequired = 1): bool
+    {
+        return $this->allowRequest($tokensRequired);
+    }
+
+    /**
+     * Get remaining requests available
+     * 
+     * @return int Number of remaining requests
+     * @since 1.0.0
+     */
+    public function getRemainingRequests(): int
+    {
+        return (int) floor($this->getAvailableTokens());
+    }
+
+    /**
+     * Get reset time for rate limiter
+     * 
+     * @return int Unix timestamp when limiter resets
+     * @since 1.0.0
+     */
+    public function getResetTime(): int
+    {
+        $tokensToFull = $this->maxTokens - $this->tokens;
+        $timeToFull = $tokensToFull / $this->refillRate;
+        return time() + (int) ceil($timeToFull);
+    }
+
+    /**
+     * Reset rate limiter for specific key
+     * 
+     * @param string|null $key Optional key for multi-key limiter
+     * 
+     * @return void
+     * @since 1.0.0
+     */
+    public function reset(?string $key = null): void
+    {
+        $this->tokens = $this->maxTokens;
+        $this->lastRefillTime = microtime(true);
+    }
+
+    /**
+     * Reset all rate limiters
+     * 
+     * @return void
+     * @since 1.0.0
+     */
+    public function resetAll(): void
+    {
+        $this->reset();
+        $this->resetStats();
     }
 
     /**

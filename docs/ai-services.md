@@ -1,638 +1,438 @@
 # AI Services
 
-> Connect to OpenAI, Azure OpenAI, local models, and more
+> Configure and use different AI providers with Semantic Kernel PHP
 
-## Overview
+## 🤖 Supported AI Services
 
-Semantic Kernel PHP supports multiple AI service providers, allowing you to:
-- Switch between AI models easily
-- Use different models for different tasks
-- Fallback to alternative providers
-- Run local models for privacy/cost
+Semantic Kernel PHP supports multiple AI providers, making it easy to switch between services or use different providers for different tasks.
 
-## Supported AI Services
+| Service | Models | Best For | Pricing |
+|---------|--------|----------|---------|
+| **OpenAI** | GPT-3.5, GPT-4, GPT-4 Turbo | General-purpose AI, chat, completion | Pay-per-token |
+| **Azure OpenAI** | GPT-3.5, GPT-4 | Enterprise applications, compliance | Pay-per-token |
+| **Google Gemini** | Gemini 1.5 Flash, Pro | Multimodal AI, fast responses | Pay-per-token |
+| **Ollama** | Llama2, Mistral, CodeLlama | Local hosting, privacy, offline | Free (self-hosted) |
 
-### 1. **OpenAI** (GPT-3.5, GPT-4)
-- Most popular choice
-- High quality responses
-- Good for most use cases
+## 🔧 Configuration
 
-### 2. **Azure OpenAI** 
-- Enterprise-grade OpenAI
-- Data privacy compliance
-- Custom fine-tuned models
+### Environment Variables
 
-### 3. **Ollama** (Local Models)
-- Run models locally
-- Complete privacy
-- No API costs
-
-## Quick Setup Guide
-
-### OpenAI Setup
-
-```php
-<?php
-require_once 'vendor/autoload.php';
-
-use SemanticKernel\Kernel;
-
-// Basic OpenAI setup
-$kernel = Kernel::createBuilder()
-    ->withOpenAI($_ENV['OPENAI_API_KEY'])
-    ->build();
-
-// Advanced OpenAI configuration
-$kernel = Kernel::createBuilder()
-    ->withOpenAI($_ENV['OPENAI_API_KEY'], [
-        'model' => 'gpt-4',
-        'temperature' => 0.7,
-        'max_tokens' => 1000,
-        'timeout' => 30
-    ])
-    ->build();
-```
-
-### Azure OpenAI Setup
-
-```php
-use SemanticKernel\AI\AzureOpenAIService;
-
-$azureService = new AzureOpenAIService(
-    $_ENV['AZURE_OPENAI_API_KEY'],
-    $_ENV['AZURE_OPENAI_ENDPOINT'],
-    'your-deployment-name'
-);
-
-$kernel = Kernel::createBuilder()
-    ->withChatService($azureService)
-    ->build();
-```
-
-### Ollama (Local) Setup
-
-```php
-use SemanticKernel\AI\OllamaLocalService;
-
-$ollamaService = new OllamaLocalService('http://localhost:11434', 'llama2');
-
-$kernel = Kernel::createBuilder()
-    ->withChatService($ollamaService)
-    ->build();
-```
-
-## Detailed Configuration
-
-### OpenAI Service Configuration
-
-```php
-use SemanticKernel\AI\OpenAIChatService;
-use SemanticKernel\Cache\MemoryCache;
-use SemanticKernel\Utils\RateLimiter;
-
-// Create with caching and rate limiting
-$cache = new MemoryCache(1000); // Cache 1000 responses
-$rateLimiter = new RateLimiter(60, 60); // 60 requests per minute
-
-$openaiService = new OpenAIChatService($_ENV['OPENAI_API_KEY'], [
-    // Model settings
-    'model' => 'gpt-4',
-    'temperature' => 0.7,        // Creativity (0.0 = deterministic, 1.0 = creative)
-    'max_tokens' => 2000,        // Response length limit
-    'top_p' => 1.0,             // Token selection diversity
-    'frequency_penalty' => 0.0,  // Avoid repetition
-    'presence_penalty' => 0.0,   // Encourage new topics
-    
-    // API settings
-    'timeout' => 30,             // Request timeout in seconds
-    'base_url' => 'https://api.openai.com/v1', // Custom endpoint if needed
-    
-    // Performance settings
-    'cache_enabled' => true,
-    'cache_ttl' => 3600,        // Cache for 1 hour
-    'rate_limit_requests' => 60,
-    'rate_limit_window' => 60
-], $cache, $rateLimiter);
-
-$kernel = Kernel::createBuilder()
-    ->withChatService($openaiService)
-    ->build();
-```
-
-### Azure OpenAI Configuration
-
-```php
-use SemanticKernel\AI\AzureOpenAIService;
-
-$azureService = new AzureOpenAIService(
-    $_ENV['AZURE_OPENAI_API_KEY'],
-    $_ENV['AZURE_OPENAI_ENDPOINT'], // e.g., 'https://your-resource.openai.azure.com/'
-    'your-deployment-name',          // Your model deployment name
-    [
-        'api_version' => '2023-12-01-preview',
-        'temperature' => 0.3,
-        'max_tokens' => 1500,
-        'timeout' => 45
-    ]
-);
-
-// Test connection
-if ($azureService->isServiceAvailable()) {
-    echo "Azure OpenAI service is available!\n";
-} else {
-    echo "Cannot connect to Azure OpenAI\n";
-}
-```
-
-### Ollama Local Service Configuration
-
-```php
-use SemanticKernel\AI\OllamaLocalService;
-
-$ollamaService = new OllamaLocalService(
-    'http://localhost:11434',  // Ollama server URL
-    'llama2',                  // Model name
-    [
-        'temperature' => 0.8,
-        'num_predict' => 1000,  // Max tokens to generate
-        'top_k' => 40,          // Limit vocabulary selection
-        'top_p' => 0.9,         // Nucleus sampling
-        'timeout' => 60
-    ]
-);
-
-// Check if model is available
-if ($ollamaService->isModelAvailable('llama2')) {
-    echo "Llama2 model is ready!\n";
-}
-
-// Get server info
-$serverInfo = $ollamaService->getServerInfo();
-echo "Ollama version: " . $serverInfo['version'] . "\n";
-```
-
-## Multi-Service Setup
-
-### Using Different Services for Different Tasks
-
-```php
-use SemanticKernel\AI\OpenAIChatService;
-use SemanticKernel\AI\OllamaLocalService;
-use SemanticKernel\SemanticFunction;
-
-// High-quality service for important tasks
-$gpt4Service = new OpenAIChatService($_ENV['OPENAI_API_KEY'], [
-    'model' => 'gpt-4',
-    'temperature' => 0.3
-]);
-
-// Local service for simple/frequent tasks
-$localService = new OllamaLocalService('http://localhost:11434', 'llama2');
-
-// Create functions with specific services
-$complexAnalysis = new SemanticFunction(
-    'analyze',
-    'Perform detailed analysis of: {{data}}',
-    'Complex data analysis'
-);
-
-$simpleRewrite = new SemanticFunction(
-    'rewrite',
-    'Rewrite this text: {{text}}',
-    'Simple text rewriting'
-);
-
-// Use GPT-4 for complex analysis
-$result1 = $complexAnalysis->invoke($context, $gpt4Service);
-
-// Use local model for simple rewriting
-$result2 = $simpleRewrite->invoke($context, $localService);
-```
-
-### Service Fallback Strategy
-
-```php
-class AIServiceManager 
-{
-    private array $services;
-    private int $currentIndex = 0;
-    
-    public function __construct(array $services) {
-        $this->services = $services;
-    }
-    
-    public function generateText(string $prompt, array $context = []): string {
-        foreach ($this->services as $service) {
-            try {
-                if ($service->isServiceAvailable()) {
-                    return $service->generateText($prompt, $context);
-                }
-            } catch (Exception $e) {
-                error_log("Service failed: " . get_class($service) . " - " . $e->getMessage());
-                continue; // Try next service
-            }
-        }
-        
-        throw new Exception("All AI services are unavailable");
-    }
-}
-
-// Setup with fallback
-$serviceManager = new AIServiceManager([
-    new OpenAIChatService($_ENV['OPENAI_API_KEY']),     // Primary
-    new AzureOpenAIService($_ENV['AZURE_KEY'], $_ENV['AZURE_ENDPOINT'], 'deployment'), // Fallback
-    new OllamaLocalService('http://localhost:11434', 'llama2') // Last resort
-]);
-
-$kernel = Kernel::createBuilder()
-    ->withChatService($serviceManager)
-    ->build();
-```
-
-## Model Selection Guide
-
-### When to Use GPT-3.5-Turbo
-**Best for:**
-- Fast, frequent requests
-- Simple text processing
-- Cost-sensitive applications
-- High-volume tasks
-
-```php
-$fastService = new OpenAIChatService($_ENV['OPENAI_API_KEY'], [
-    'model' => 'gpt-3.5-turbo',
-    'temperature' => 0.3,
-    'max_tokens' => 500
-]);
-
-// Good for: summaries, simple rewrites, basic Q&A
-```
-
-### When to Use GPT-4
-**Best for:**
-- Complex reasoning
-- High-quality content creation
-- Critical business decisions
-- Detailed analysis
-
-```php
-$powerfulService = new OpenAIChatService($_ENV['OPENAI_API_KEY'], [
-    'model' => 'gpt-4',
-    'temperature' => 0.7,
-    'max_tokens' => 2000
-]);
-
-// Good for: strategic planning, complex analysis, creative writing
-```
-
-### When to Use Local Models (Ollama)
-**Best for:**
-- Privacy-sensitive data
-- High-volume, low-cost operations
-- Offline environments
-- Custom fine-tuned models
-
-```php
-$privateService = new OllamaLocalService('http://localhost:11434', 'llama2');
-
-// Good for: internal documents, personal data, high-frequency simple tasks
-```
-
-## Environment Configuration
-
-### .env File Setup
+Create a `.env` file with your API keys:
 
 ```env
 # OpenAI
 OPENAI_API_KEY=sk-your-openai-key-here
-OPENAI_ORG_ID=org-your-organization-id  # Optional
+OPENAI_MODEL=gpt-3.5-turbo
+OPENAI_TEMPERATURE=0.7
+OPENAI_MAX_TOKENS=1000
+
+# Google Gemini
+GOOGLE_API_KEY=your-google-api-key-here
+GEMINI_MODEL=gemini-1.5-flash
+GEMINI_TEMPERATURE=0.9
 
 # Azure OpenAI
 AZURE_OPENAI_API_KEY=your-azure-key
-AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
+AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com
 AZURE_OPENAI_DEPLOYMENT=your-deployment-name
-AZURE_OPENAI_API_VERSION=2023-12-01-preview
+AZURE_OPENAI_API_VERSION=2024-02-01
 
-# Ollama
-OLLAMA_BASE_URL=http://localhost:11434
+# Ollama (Local)
+OLLAMA_HOST=http://localhost:11434
 OLLAMA_MODEL=llama2
-
-# Service Preferences
-DEFAULT_AI_SERVICE=openai
-FALLBACK_AI_SERVICE=azure
-LOCAL_AI_SERVICE=ollama
 ```
 
-### Configuration Class
+## 🔵 OpenAI
 
+Most popular and widely used AI service.
+
+### Setup
 ```php
-use SemanticKernel\Configuration\KernelConfig;
-
-$config = KernelConfig::fromEnvironment('');
+use SemanticKernel\Kernel;
 
 $kernel = Kernel::createBuilder()
-    ->withConfiguration($config)
+    ->withOpenAI($_ENV['OPENAI_API_KEY'], 'gpt-3.5-turbo')
     ->build();
 ```
 
-## Performance Optimization
+### Available Models
+- `gpt-3.5-turbo` - Fast and cost-effective
+- `gpt-4` - Most capable model
+- `gpt-4-turbo` - Latest GPT-4 with improved speed
+- `gpt-4-32k` - Extended context window
 
-### Caching Strategies
-
+### Advanced Configuration
 ```php
-use SemanticKernel\Cache\MemoryCache;
-
-// Cache responses to reduce API calls
-$cache = new MemoryCache(2000); // Cache 2000 responses
-
-$service = new OpenAIChatService($_ENV['OPENAI_API_KEY'], [
-    'model' => 'gpt-3.5-turbo',
-    'cache_enabled' => true,
-    'cache_ttl' => 7200  // Cache for 2 hours
-], $cache);
-
-// Check cache performance
-$stats = $service->getServiceStats();
-echo "Cache hit rate: " . $stats['cache_stats']['hit_rate'] . "%\n";
-```
-
-### Rate Limiting
-
-```php
-use SemanticKernel\Utils\RateLimiter;
-
-// Prevent API quota exceeded errors
-$rateLimiter = new RateLimiter(
-    100,  // 100 requests
-    3600, // per hour
-    1.2   // 20% burst capacity
-);
-
-$service = new OpenAIChatService($_ENV['OPENAI_API_KEY'], [
-    'rate_limit_requests' => 100,
-    'rate_limit_window' => 3600
-], null, $rateLimiter);
-
-// Monitor rate limiting
-$stats = $rateLimiter->getStats();
-echo "Requests allowed: " . $stats['requests_allowed'] . "\n";
-echo "Requests denied: " . $stats['requests_denied'] . "\n";
-```
-
-### Token Management
-
-```php
-use SemanticKernel\Utils\TokenCounter;
-
-$tokenCounter = new TokenCounter();
-
-// Estimate costs before making requests
-$prompt = "Analyze this large document...";
-$estimatedTokens = $tokenCounter->countTokens($prompt, 'gpt-4');
-$estimatedCost = $tokenCounter->estimateCost('gpt-4', $estimatedTokens);
-
-echo "Estimated tokens: {$estimatedTokens}\n";
-echo "Estimated cost: $" . number_format($estimatedCost, 4) . "\n";
-
-// Proceed only if cost is acceptable
-if ($estimatedCost < 0.10) {
-    $result = $service->generateText($prompt);
-}
-```
-
-## Service Monitoring
-
-### Health Checks
-
-```php
-function checkServiceHealth($services) {
-    foreach ($services as $name => $service) {
-        try {
-            if ($service->isServiceAvailable()) {
-                echo "✅ {$name}: Available\n";
-            } else {
-                echo "❌ {$name}: Unavailable\n";
-            }
-        } catch (Exception $e) {
-            echo "❌ {$name}: Error - " . $e->getMessage() . "\n";
-        }
-    }
-}
-
-$services = [
-    'OpenAI' => new OpenAIChatService($_ENV['OPENAI_API_KEY']),
-    'Azure' => new AzureOpenAIService($_ENV['AZURE_KEY'], $_ENV['AZURE_ENDPOINT'], 'deployment'),
-    'Ollama' => new OllamaLocalService('http://localhost:11434', 'llama2')
-];
-
-checkServiceHealth($services);
-```
-
-### Performance Monitoring
-
-```php
-// Monitor API response times and costs
-class ServiceMonitor 
-{
-    private array $metrics = [];
-    
-    public function recordRequest($service, $tokens, $responseTime, $cost) {
-        $this->metrics[] = [
-            'service' => $service,
-            'tokens' => $tokens,
-            'response_time' => $responseTime,
-            'cost' => $cost,
-            'timestamp' => time()
-        ];
-    }
-    
-    public function getReport() {
-        $report = [];
-        
-        foreach ($this->metrics as $metric) {
-            $service = $metric['service'];
-            
-            if (!isset($report[$service])) {
-                $report[$service] = [
-                    'total_requests' => 0,
-                    'total_tokens' => 0,
-                    'total_cost' => 0,
-                    'avg_response_time' => 0
-                ];
-            }
-            
-            $report[$service]['total_requests']++;
-            $report[$service]['total_tokens'] += $metric['tokens'];
-            $report[$service]['total_cost'] += $metric['cost'];
-            $report[$service]['avg_response_time'] += $metric['response_time'];
-        }
-        
-        // Calculate averages
-        foreach ($report as &$stats) {
-            $stats['avg_response_time'] /= $stats['total_requests'];
-        }
-        
-        return $report;
-    }
-}
-```
-
-## Advanced Usage
-
-### Custom AI Service
-
-```php
-use SemanticKernel\AI\ChatServiceInterface;
-
-class CustomAIService implements ChatServiceInterface 
-{
-    private string $apiKey;
-    private string $baseUrl;
-    
-    public function __construct(string $apiKey, string $baseUrl) {
-        $this->apiKey = $apiKey;
-        $this->baseUrl = $baseUrl;
-    }
-    
-    public function generateText(string $prompt, array $context = []): string {
-        // Implement your custom AI service logic
-        $response = $this->makeApiCall($prompt, $context);
-        return $response['text'];
-    }
-    
-    public function generateTextWithMetadata(string $prompt, array $context = []): array {
-        $startTime = microtime(true);
-        
-        $response = $this->makeApiCall($prompt, $context);
-        
-        return [
-            'text' => $response['text'],
-            'tokens' => $response['usage']['total_tokens'] ?? 0,
-            'processing_time' => microtime(true) - $startTime,
-            'model' => $response['model'] ?? 'custom'
-        ];
-    }
-    
-    public function isServiceAvailable(): bool {
-        // Check if your service is available
-        return true;
-    }
-    
-    private function makeApiCall(string $prompt, array $context): array {
-        // Implement your API call logic
-        return [
-            'text' => 'Response from custom service',
-            'usage' => ['total_tokens' => 100],
-            'model' => 'custom-model'
-        ];
-    }
-}
-
-// Use your custom service
-$customService = new CustomAIService('your-api-key', 'https://your-api.com');
-
 $kernel = Kernel::createBuilder()
-    ->withChatService($customService)
+    ->withOpenAI($_ENV['OPENAI_API_KEY'], 'gpt-4', [
+        'temperature' => 0.7,
+        'max_tokens' => 2000,
+        'top_p' => 0.9,
+        'frequency_penalty' => 0.0,
+        'presence_penalty' => 0.0
+    ])
     ->build();
 ```
 
-### Model Switching
-
+### Usage Example
 ```php
-class DynamicModelSelector 
-{
-    private array $services;
-    
-    public function selectService(string $taskType, int $complexity): ChatServiceInterface {
-        return match($taskType) {
-            'creative' => new OpenAIChatService($_ENV['OPENAI_API_KEY'], ['model' => 'gpt-4', 'temperature' => 0.9]),
-            'analytical' => new OpenAIChatService($_ENV['OPENAI_API_KEY'], ['model' => 'gpt-4', 'temperature' => 0.1]),
-            'simple' => new OpenAIChatService($_ENV['OPENAI_API_KEY'], ['model' => 'gpt-3.5-turbo']),
-            'private' => new OllamaLocalService('http://localhost:11434', 'llama2'),
-            default => new OpenAIChatService($_ENV['OPENAI_API_KEY'])
-        };
-    }
-}
-
-$selector = new DynamicModelSelector();
-
-// Use different models for different tasks
-$creativeService = $selector->selectService('creative', 5);
-$analyticalService = $selector->selectService('analytical', 8);
+$response = $kernel->getChatService()->generateText('Explain quantum computing');
+echo $response;
 ```
 
-## Troubleshooting
+## 🟢 Google Gemini
 
-### Common Issues
+Google's multimodal AI with fast performance and competitive pricing.
 
-#### API Key Problems
+### Setup
 ```php
-// Test API key validity
-try {
-    $service = new OpenAIChatService($_ENV['OPENAI_API_KEY']);
-    if ($service->isServiceAvailable()) {
-        echo "API key is valid\n";
-    }
-} catch (Exception $e) {
-    echo "API key error: " . $e->getMessage() . "\n";
-}
+$kernel = Kernel::createBuilder()
+    ->withGemini($_ENV['GOOGLE_API_KEY'], 'gemini-1.5-flash')
+    ->build();
 ```
 
-#### Rate Limiting Issues
+### Available Models
+- `gemini-1.5-flash` - Fast and efficient
+- `gemini-1.5-pro` - Most capable Gemini model
+- `gemini-pro-vision` - Multimodal (text + images)
+
+### Configuration
 ```php
-// Handle rate limiting gracefully
-try {
-    $result = $service->generateText($prompt);
-} catch (Exception $e) {
-    if (strpos($e->getMessage(), 'rate limit') !== false) {
-        echo "Rate limited. Waiting 60 seconds...\n";
-        sleep(60);
-        $result = $service->generateText($prompt); // Retry
-    }
-}
+$kernel = Kernel::createBuilder()
+    ->withGemini($_ENV['GOOGLE_API_KEY'], 'gemini-1.5-pro', [
+        'temperature' => 0.9,
+        'max_tokens' => 8192,
+        'top_p' => 0.8,
+        'top_k' => 40
+    ])
+    ->build();
 ```
 
-#### Connection Problems
+### Usage Example
 ```php
-// Test connectivity
-$services = [
-    'OpenAI' => 'https://api.openai.com/v1/models',
-    'Ollama' => 'http://localhost:11434/api/tags'
-];
+// Get service information
+$geminiService = $kernel->getChatService();
+echo "Service: " . $geminiService->getServiceName() . "\n";
+echo "Model: " . $geminiService->getModel() . "\n";
+echo "Supported models: " . implode(', ', $geminiService->getSupportedModels()) . "\n";
 
-foreach ($services as $name => $url) {
-    $context = stream_context_create(['http' => ['timeout' => 5]]);
-    $result = @file_get_contents($url, false, $context);
-    
-    if ($result !== false) {
-        echo "✅ {$name}: Connected\n";
-    } else {
-        echo "❌ {$name}: Connection failed\n";
-    }
-}
+// Generate response
+$response = $geminiService->generateText('Write a haiku about programming');
+echo $response;
 ```
 
-## CLI Testing
+## 🟦 Azure OpenAI
 
-Use the built-in CLI to test your AI services:
+Enterprise-grade OpenAI service with additional compliance and security features.
+
+### Setup
+```php
+$kernel = Kernel::createBuilder()
+    ->withAzureOpenAI(
+        $_ENV['AZURE_OPENAI_API_KEY'],
+        $_ENV['AZURE_OPENAI_ENDPOINT'],
+        $_ENV['AZURE_OPENAI_DEPLOYMENT']
+    )
+    ->build();
+```
+
+### Configuration
+```php
+$kernel = Kernel::createBuilder()
+    ->withAzureOpenAI(
+        $_ENV['AZURE_OPENAI_API_KEY'],
+        $_ENV['AZURE_OPENAI_ENDPOINT'],
+        $_ENV['AZURE_OPENAI_DEPLOYMENT'],
+        [
+            'api_version' => '2024-02-01',
+            'temperature' => 0.7,
+            'max_tokens' => 1500
+        ]
+    )
+    ->build();
+```
+
+### Benefits
+- **Enterprise Security**: Enhanced data protection and compliance
+- **Private Deployment**: Your data stays within your Azure tenant
+- **SLA Guarantees**: Enterprise-grade reliability
+- **Regional Availability**: Deploy in your preferred region
+
+## 🟠 Ollama (Local)
+
+Self-hosted AI models for privacy and offline usage.
+
+### Prerequisites
+Install Ollama from [ollama.ai](https://ollama.ai) and pull a model:
 
 ```bash
-# Test AI service connectivity
-./bin/sk test-ai
+# Install Ollama
+curl -fsSL https://ollama.ai/install.sh | sh
 
-# Count tokens for cost estimation
-./bin/sk tokens "Your prompt here"
-
-# Show current configuration
-./bin/sk config
-
-# Run interactive demo
-./bin/sk demo
+# Pull a model
+ollama pull llama2
+ollama pull mistral
+ollama pull codellama
 ```
 
-## Next Steps
+### Setup
+```php
+$kernel = Kernel::createBuilder()
+    ->withOllama('llama2', 'http://localhost:11434')
+    ->build();
+```
 
-- **[Getting Started](getting-started.md)** - Set up your first AI service
+### Available Models
+- `llama2` - Meta's Llama 2 model
+- `mistral` - Mistral AI's efficient model
+- `codellama` - Code-specialized Llama
+- `phi` - Microsoft's small but capable model
+
+### Configuration
+```php
+$kernel = Kernel::createBuilder()
+    ->withOllama('mistral', 'http://localhost:11434', [
+        'temperature' => 0.8,
+        'top_p' => 0.9,
+        'top_k' => 40
+    ])
+    ->build();
+```
+
+## ⚖️ Service Comparison
+
+### Performance Comparison
+```php
+$services = [
+    'OpenAI GPT-3.5' => Kernel::createBuilder()->withOpenAI($_ENV['OPENAI_API_KEY'], 'gpt-3.5-turbo')->build(),
+    'OpenAI GPT-4' => Kernel::createBuilder()->withOpenAI($_ENV['OPENAI_API_KEY'], 'gpt-4')->build(),
+    'Google Gemini' => Kernel::createBuilder()->withGemini($_ENV['GOOGLE_API_KEY'], 'gemini-1.5-flash')->build(),
+    'Ollama Llama2' => Kernel::createBuilder()->withOllama('llama2')->build()
+];
+
+$prompt = "Explain AI in one paragraph";
+
+foreach ($services as $name => $kernel) {
+    if ($kernel->getChatService()->isServiceAvailable()) {
+        $start = microtime(true);
+        $response = $kernel->getChatService()->generateText($prompt);
+        $duration = round((microtime(true) - $start) * 1000);
+        
+        echo "{$name}: {$duration}ms\n";
+        echo "Response length: " . strlen($response) . " chars\n\n";
+    }
+}
+```
+
+### Cost Comparison
+| Service | Model | Input Cost (1K tokens) | Output Cost (1K tokens) |
+|---------|-------|------------------------|--------------------------|
+| OpenAI | GPT-3.5 Turbo | $0.0015 | $0.002 |
+| OpenAI | GPT-4 | $0.03 | $0.06 |
+| OpenAI | GPT-4 Turbo | $0.01 | $0.03 |
+| Google | Gemini 1.5 Flash | $0.00035 | $0.00105 |
+| Google | Gemini 1.5 Pro | $0.00125 | $0.00375 |
+| Ollama | Any Model | Free | Free |
+
+## 🔄 Service Switching
+
+### Runtime Service Switching
+```php
+function createKernelWithService($serviceName) {
+    switch ($serviceName) {
+        case 'openai':
+            return Kernel::createBuilder()
+                ->withOpenAI($_ENV['OPENAI_API_KEY'])
+                ->build();
+                
+        case 'gemini':
+            return Kernel::createBuilder()
+                ->withGemini($_ENV['GOOGLE_API_KEY'])
+                ->build();
+                
+        case 'azure':
+            return Kernel::createBuilder()
+                ->withAzureOpenAI(
+                    $_ENV['AZURE_OPENAI_API_KEY'],
+                    $_ENV['AZURE_OPENAI_ENDPOINT'],
+                    $_ENV['AZURE_OPENAI_DEPLOYMENT']
+                )
+                ->build();
+                
+        case 'ollama':
+            return Kernel::createBuilder()
+                ->withOllama('llama2')
+                ->build();
+                
+        default:
+            throw new Exception("Unknown service: {$serviceName}");
+    }
+}
+
+// Use different services for different tasks
+$fastKernel = createKernelWithService('gemini');     // Fast responses
+$smartKernel = createKernelWithService('openai');    // Complex reasoning
+$privateKernel = createKernelWithService('ollama');  // Sensitive data
+```
+
+### Fallback Strategy
+```php
+function getAvailableKernel() {
+    $services = ['openai', 'gemini', 'azure', 'ollama'];
+    
+    foreach ($services as $service) {
+        try {
+            $kernel = createKernelWithService($service);
+            if ($kernel->getChatService()->isServiceAvailable()) {
+                echo "Using service: {$service}\n";
+                return $kernel;
+            }
+        } catch (Exception $e) {
+            echo "Service {$service} unavailable: {$e->getMessage()}\n";
+            continue;
+        }
+    }
+    
+    throw new Exception('No AI services available');
+}
+
+$kernel = getAvailableKernel();
+```
+
+## 📊 Monitoring & Observability
+
+### Service Health Check
+```php
+function checkServiceHealth($kernel) {
+    $service = $kernel->getChatService();
+    
+    $health = [
+        'service_name' => $service->getServiceName(),
+        'model' => $service->getModel(),
+        'available' => $service->isServiceAvailable(),
+    ];
+    
+    if (method_exists($service, 'getStats')) {
+        $health['stats'] = $service->getStats();
+    }
+    
+    return $health;
+}
+
+$health = checkServiceHealth($kernel);
+echo json_encode($health, JSON_PRETTY_PRINT);
+```
+
+### Response Time Monitoring
+```php
+function timeServiceCall($kernel, $prompt) {
+    $start = microtime(true);
+    
+    try {
+        $response = $kernel->getChatService()->generateText($prompt);
+        $duration = microtime(true) - $start;
+        
+        return [
+            'success' => true,
+            'duration_ms' => round($duration * 1000, 2),
+            'response_length' => strlen($response),
+            'service' => $kernel->getChatService()->getServiceName()
+        ];
+    } catch (Exception $e) {
+        $duration = microtime(true) - $start;
+        
+        return [
+            'success' => false,
+            'duration_ms' => round($duration * 1000, 2),
+            'error' => $e->getMessage(),
+            'service' => $kernel->getChatService()->getServiceName()
+        ];
+    }
+}
+```
+
+## 🛡️ Error Handling
+
+### Service-Specific Error Handling
+```php
+function handleServiceError($kernel, $prompt) {
+    try {
+        return $kernel->getChatService()->generateText($prompt);
+        
+    } catch (Exception $e) {
+        $serviceName = $kernel->getChatService()->getServiceName();
+        
+        switch ($serviceName) {
+            case 'OpenAI':
+                if (strpos($e->getMessage(), '429') !== false) {
+                    // Rate limit exceeded
+                    sleep(60);
+                    return handleServiceError($kernel, $prompt);
+                }
+                break;
+                
+            case 'Google Gemini':
+                if (strpos($e->getMessage(), 'quota') !== false) {
+                    // Switch to alternative service
+                    $fallbackKernel = createKernelWithService('openai');
+                    return $fallbackKernel->getChatService()->generateText($prompt);
+                }
+                break;
+                
+            case 'Ollama':
+                if (strpos($e->getMessage(), 'connection') !== false) {
+                    throw new Exception('Ollama server is not running. Start with: ollama serve');
+                }
+                break;
+        }
+        
+        throw $e;
+    }
+}
+```
+
+## 🎯 Best Practices
+
+### 1. Service Selection Guidelines
+- **Development**: Use Ollama for offline development
+- **Prototyping**: Use Gemini for fast iterations
+- **Production**: Use OpenAI for reliability
+- **Enterprise**: Use Azure OpenAI for compliance
+
+### 2. Cost Optimization
+```php
+// Use cheaper models for simple tasks
+$summarizer = Kernel::createBuilder()
+    ->withOpenAI($_ENV['OPENAI_API_KEY'], 'gpt-3.5-turbo')
+    ->build();
+
+// Use premium models for complex reasoning
+$analyzer = Kernel::createBuilder()
+    ->withOpenAI($_ENV['OPENAI_API_KEY'], 'gpt-4')
+    ->build();
+```
+
+### 3. Performance Optimization
+```php
+// Enable caching for repeated queries
+$kernel = Kernel::createBuilder()
+    ->withGemini($_ENV['GOOGLE_API_KEY'], 'gemini-1.5-flash', [
+        'cache_enabled' => true,
+        'cache_ttl' => 3600
+    ])
+    ->build();
+```
+
+### 4. Security Considerations
+- Store API keys in environment variables, never in code
+- Use Azure OpenAI for sensitive data
+- Implement rate limiting to prevent abuse
+- Monitor API usage and costs
+- Use Ollama for processing confidential information
+
+## 📚 Next Steps
+
 - **[Semantic Functions](semantic-functions.md)** - Create AI-powered functions
-- **[Memory Systems](memory.md)** - Add memory to your AI services
-- **[Cookbook](cookbook.md)** - Complete examples using different AI services 
+- **[Memory Systems](memory.md)** - Add context and memory
+- **[Planning](planners.md)** - Let AI plan complex tasks
+- **[Getting Started](getting-started.md)** - Basic usage patterns 

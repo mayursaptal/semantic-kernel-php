@@ -201,10 +201,11 @@ plugins/
 
 ## Examples
 
-See the following examples for practical usage:
+See the following for practical usage:
 
-- `examples/04_modular_plugin_structure.php` - Complete modular structure demo
+- `examples/03_semantic_functions.php` - Plugin creation and usage demo
 - `plugins/WritingSkills/` - Real modular plugin implementation
+- `docs/cookbook.md` - Copy-paste solutions using modular plugins
 
 ## Framework Compatibility
 

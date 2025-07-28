@@ -33,9 +33,14 @@ $summarizer = new SemanticFunction(
     'Creates brief summaries of text'      // Description
 );
 
+// Add to plugin and use via kernel
+$plugin = KernelPlugin::create('TextUtils');
+$plugin->addFunction($summarizer);
+$kernel->importPlugin($plugin);
+
 // Use it
 $context = new ContextVariables(['input' => $longText]);
-$result = $summarizer->invoke($context, $kernel);
+$result = $kernel->run('TextUtils.summarize', $context);
 echo $result->getText(); // Two-sentence summary
 ```
 
@@ -392,7 +397,12 @@ $result = $kernel->run('Content.rewrite', ['content' => $text, 'style' => 'casua
 
 require_once 'vendor/autoload.php';
 
-$kernel = Kernel::createBuilder()->withOpenAI($_ENV['OPENAI_API_KEY'])->build();
+// Works with any AI service
+$kernel = Kernel::createBuilder()
+    ->withOpenAI($_ENV['OPENAI_API_KEY'])     // or
+    ->withGemini($_ENV['GOOGLE_API_KEY'])     // or  
+    ->withAzureOpenAI($_ENV['AZURE_API_KEY'], $_ENV['AZURE_ENDPOINT'], $_ENV['AZURE_DEPLOYMENT'])
+    ->build();
 
 // Test summarizer
 $summarizer = new SemanticFunction(
@@ -409,9 +419,51 @@ $testCases = [
 
 foreach ($testCases as $test) {
     echo "Input: " . substr($test, 0, 50) . "...\n";
-    $result = $summarizer->invoke(new ContextVariables(['input' => $test]), $kernel);
+    $result = $kernel->run('TextUtils.summarize', new ContextVariables(['input' => $test]));
     echo "Output: " . $result->getText() . "\n\n";
 }
+```
+
+## Advanced Function Control
+
+### Function Choice Behavior
+
+Control how AI decides when to use your functions:
+
+```php
+use SemanticKernel\AI\PromptExecutionSettings;
+
+// AI automatically decides when to call functions
+$autoSettings = PromptExecutionSettings::withAutoFunctionChoice();
+
+// AI must call at least one function  
+$requiredSettings = PromptExecutionSettings::withRequiredFunctionChoice();
+
+// Disable function calling (text generation only)
+$noneSettings = PromptExecutionSettings::withNoFunctionCalling();
+
+// Apply to kernel operations
+$kernel->run('TextUtils.summarize', $context, $autoSettings);
+```
+
+### Service-Specific Optimization
+
+Different AI services have different strengths:
+
+```php
+// Use Gemini for fast text processing
+$fastKernel = Kernel::createBuilder()
+    ->withGemini($_ENV['GOOGLE_API_KEY'], 'gemini-1.5-flash')
+    ->build();
+
+// Use GPT-4 for complex reasoning
+$smartKernel = Kernel::createBuilder()
+    ->withOpenAI($_ENV['OPENAI_API_KEY'], 'gpt-4')
+    ->build();
+
+// Use same functions with different services
+$quickSummary = $fastKernel->run('TextUtils.summarize', $context);
+$detailedAnalysis = $smartKernel->run('TextUtils.analyze', $context);
 ```
 
 ## Performance Tips

@@ -291,6 +291,38 @@ class VolatileMemoryStore implements MemoryStoreInterface
     }
 
     /**
+     * Alias for doesCollectionExist
+     * 
+     * @param string $collection Collection name
+     * 
+     * @return bool True if collection exists, false otherwise
+     * @since 1.0.0
+     */
+    public function exists(string $collection): bool
+    {
+        return $this->doesCollectionExist($collection);
+    }
+
+    /**
+     * Clear all items from a collection
+     * 
+     * @param string $collection Collection name
+     * 
+     * @return bool True if cleared successfully, false otherwise
+     * @since 1.0.0
+     */
+    public function clearCollection(string $collection): bool
+    {
+        if (!$this->doesCollectionExist($collection)) {
+            return false;
+        }
+
+        $this->collections[$collection]['items'] = [];
+        $this->stats['items_cleared'] = ($this->stats['items_cleared'] ?? 0) + 1;
+        return true;
+    }
+
+    /**
      * Gets a list of all collections
      * 
      * @return array<string> Array of collection names

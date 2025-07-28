@@ -63,9 +63,10 @@ use SemanticKernel\KernelPlugin;
 use SemanticKernel\SemanticFunction;
 use SemanticKernel\Planner\Planner;
 
-// Set up kernel with content functions
+// Set up kernel with content functions - works with any AI service
 $kernel = Kernel::createBuilder()
-    ->withOpenAI($_ENV['OPENAI_API_KEY'])
+    ->withGemini($_ENV['GOOGLE_API_KEY'])     // Fast planning with Gemini
+    ->withVolatileMemory()                    // Remember plan context
     ->build();
 
 // Add content creation functions
@@ -394,9 +395,9 @@ try {
 $plan1 = $planner->createPlan('Write blog post about PHP security');
 $plan2 = $planner->createPlan('Write blog post about PHP performance'); // Uses cached planning logic
 
-// Use memory to store intermediate results
+// Use memory to store intermediate results - any AI service works
 $kernel = Kernel::createBuilder()
-    ->withOpenAI($_ENV['OPENAI_API_KEY'])
+    ->withOpenAI($_ENV['OPENAI_API_KEY'])     // or ->withGemini($_ENV['GOOGLE_API_KEY'])
     ->withVolatileMemory() // Enables result caching between steps
     ->build();
 ```
