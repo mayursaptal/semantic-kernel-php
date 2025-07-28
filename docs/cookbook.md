@@ -734,11 +734,16 @@ class SemanticKernelService
             'Product description generator'
         );
         
-        return $generator->invoke(new \SemanticKernel\ContextVariables([
-            'name' => $product->name,
-            'features' => $product->features,
-            'price' => $product->price
-        ]), $this->kernel)->getText();
+            // Add function to plugin first
+    $plugin = \SemanticKernel\KernelPlugin::create('ProductTools');
+    $plugin->addFunction($generator);
+    $this->kernel->importPlugin($plugin);
+    
+    return $this->kernel->run('ProductTools.generateProductDesc', new \SemanticKernel\ContextVariables([
+        'name' => $product->name,
+        'features' => $product->features,
+        'price' => $product->price
+    ]))->getText();
     }
 }
 ```
