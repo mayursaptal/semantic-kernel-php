@@ -24,6 +24,7 @@ use SemanticKernel\ContextVariables;
  * Supported AI Providers:
  * - OpenAI (GPT-3.5, GPT-4, etc.)
  * - Azure OpenAI Service
+ * - Google Gemini (Gemini 1.5 Flash, Pro, etc.)
  * - Ollama (Local LLM hosting)
  * - Custom implementations for other providers
  * 

@@ -24,7 +24,7 @@ use Exception;
  * 
  * Key Features:
  * - Plugin management with auto-discovery
- * - Multiple AI service integrations (OpenAI, Azure OpenAI, Ollama)
+ * - Multiple AI service integrations (OpenAI, Azure OpenAI, Google Gemini, Ollama)
  * - Memory management with vector similarity search
  * - Event system for telemetry and monitoring
  * - Middleware pipeline for request/response processing
