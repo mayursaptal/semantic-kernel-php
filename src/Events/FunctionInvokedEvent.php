@@ -63,17 +63,40 @@ class FunctionInvokedEvent extends KernelEvent
 
     public function __construct(
         string $pluginName,
-        string $functionName,
-        ContextVariables $context,
-        ?FunctionResult $result = null,
+        string|array $functionName = '',
+        ContextVariables|array $context = null,
+        FunctionResult|string|null $result = null,
         float $executionTimeMs = 0.0,
         array $metadata = []
     ) {
         parent::__construct($metadata);
-        $this->pluginName = $pluginName;
-        $this->functionName = $functionName;
-        $this->context = $context;
-        $this->result = $result;
+        
+        // Handle backwards compatibility where first param might be "Plugin.Function"
+        if (strpos($pluginName, '.') !== false && empty($functionName)) {
+            [$this->pluginName, $this->functionName] = explode('.', $pluginName, 2);
+        } else {
+            $this->pluginName = $pluginName;
+            $this->functionName = is_array($functionName) ? '' : (string)$functionName;
+        }
+        
+        // Handle context parameter flexibility
+        if (is_array($context)) {
+            $this->context = new \SemanticKernel\ContextVariables($context);
+        } elseif ($context instanceof ContextVariables) {
+            $this->context = $context;
+        } else {
+            $this->context = new \SemanticKernel\ContextVariables();
+        }
+        
+        // Handle result parameter flexibility
+        if (is_string($result)) {
+            $this->result = new \SemanticKernel\FunctionResult($result);
+        } elseif ($result instanceof FunctionResult) {
+            $this->result = $result;
+        } else {
+            $this->result = null;
+        }
+        
         $this->executionTimeMs = $executionTimeMs;
     }
 

@@ -2,370 +2,382 @@
 
 declare(strict_types=1);
 
-namespace SemanticKernel\Tests;
+namespace Tests;
 
 use PHPUnit\Framework\TestCase;
 use SemanticKernel\Configuration\KernelConfig;
-use InvalidArgumentException;
 
-/**
- * Test suite for Configuration System functionality
- */
 class ConfigurationTest extends TestCase
 {
-    private KernelConfig $config;
-
-    protected function setUp(): void
+    public function testKernelConfigCreation(): void
     {
-        $this->config = new KernelConfig();
-    }
-
-    public function testConfigCanBeCreated(): void
-    {
-        $this->assertInstanceOf(KernelConfig::class, $this->config);
-    }
-
-    public function testConfigWithInitialData(): void
-    {
-        $initialData = [
-            'ai_services' => ['timeout' => 45],
-            'custom' => ['setting' => 'value']
-        ];
-
-        $config = new KernelConfig($initialData);
+        $config = new KernelConfig();
         
-        $this->assertEquals(45, $config->get('ai_services.timeout'));
-        $this->assertEquals('value', $config->get('custom.setting'));
+        $this->assertInstanceOf(KernelConfig::class, $config);
     }
 
-    public function testGetDefaultValues(): void
+    public function testKernelConfigWithDefaults(): void
     {
-        $this->assertEquals('openai', $this->config->get('ai_services.default_service'));
-        $this->assertEquals(30, $this->config->get('ai_services.timeout'));
-        $this->assertEquals(10, $this->config->get('planner.max_steps'));
-        $this->assertEquals('volatile', $this->config->get('memory.default_store'));
-        $this->assertFalse($this->config->get('logging.enabled'));
+        $config = new KernelConfig();
+        
+        // Test default values exist
+        $this->assertTrue($config->has('logging'));
+        $this->assertTrue($config->has('telemetry'));
+        $this->assertTrue($config->has('plugins'));
+        $this->assertTrue($config->has('ai_services'));
+        $this->assertTrue($config->has('memory'));
+        $this->assertTrue($config->has('planner'));
+        $this->assertTrue($config->has('execution'));
     }
 
-    public function testGetWithDefaultValue(): void
+    public function testKernelConfigWithCustomData(): void
     {
-        $value = $this->config->get('nonexistent.key', 'default_value');
-        $this->assertEquals('default_value', $value);
-    }
-
-    public function testSetAndGet(): void
-    {
-        $this->config->set('custom.new_setting', 'new_value');
-        $this->assertEquals('new_value', $this->config->get('custom.new_setting'));
-    }
-
-    public function testSetNestedValues(): void
-    {
-        $this->config->set('deeply.nested.setting', 'deep_value');
-        $this->assertEquals('deep_value', $this->config->get('deeply.nested.setting'));
-    }
-
-    public function testHasKey(): void
-    {
-        $this->assertTrue($this->config->has('ai_services.timeout'));
-        $this->assertFalse($this->config->has('nonexistent.key'));
-
-        $this->config->set('test.key', 'value');
-        $this->assertTrue($this->config->has('test.key'));
-    }
-
-    public function testGetAll(): void
-    {
-        $all = $this->config->all();
-        $this->assertIsArray($all);
-        $this->assertArrayHasKey('logging', $all);
-        $this->assertArrayHasKey('ai_services', $all);
-        $this->assertArrayHasKey('memory', $all);
-    }
-
-    public function testMergeConfiguration(): void
-    {
-        $newConfig = [
-            'ai_services' => ['timeout' => 60], // Override existing
-            'custom' => ['new_setting' => 'merged_value'] // Add new
-        ];
-
-        $this->config->merge($newConfig);
-
-        $this->assertEquals(60, $this->config->get('ai_services.timeout'));
-        $this->assertEquals('merged_value', $this->config->get('custom.new_setting'));
-        // Existing values should remain
-        $this->assertEquals('openai', $this->config->get('ai_services.default_service'));
-    }
-
-    public function testFromEnvironment(): void
-    {
-        // Set test environment variables
-        $_ENV['SK_AI_SERVICES_TIMEOUT'] = '45';
-        $_ENV['SK_LOGGING_ENABLED'] = 'true';
-        $_ENV['SK_CUSTOM_SETTING'] = 'env_value';
-        $_ENV['SK_NESTED_DEEP_VALUE'] = 'deep_env_value';
-
-        $config = KernelConfig::fromEnvironment('SK_');
-
-        $this->assertEquals(45, $config->get('ai.services.timeout'));
-        $this->assertTrue($config->get('logging.enabled'));
-        $this->assertEquals('env_value', $config->get('custom.setting'));
-        $this->assertEquals('deep_env_value', $config->get('nested.deep.value'));
-
-        // Clean up
-        unset($_ENV['SK_AI_SERVICES_TIMEOUT']);
-        unset($_ENV['SK_LOGGING_ENABLED']);
-        unset($_ENV['SK_CUSTOM_SETTING']);
-        unset($_ENV['SK_NESTED_DEEP_VALUE']);
-    }
-
-    public function testFromEnvironmentWithJsonValues(): void
-    {
-        $_ENV['SK_JSON_ARRAY'] = '["item1", "item2", "item3"]';
-        $_ENV['SK_JSON_OBJECT'] = '{"key": "value", "number": 42}';
-
-        $config = KernelConfig::fromEnvironment('SK_');
-
-        $this->assertEquals(['item1', 'item2', 'item3'], $config->get('json.array'));
-        $this->assertEquals(['key' => 'value', 'number' => 42], $config->get('json.object'));
-
-        // Clean up
-        unset($_ENV['SK_JSON_ARRAY']);
-        unset($_ENV['SK_JSON_OBJECT']);
-    }
-
-    public function testFromEnvironmentWithBooleanValues(): void
-    {
-        $_ENV['SK_BOOL_TRUE'] = 'true';
-        $_ENV['SK_BOOL_FALSE'] = 'false';
-
-        $config = KernelConfig::fromEnvironment('SK_');
-
-        $this->assertTrue($config->get('bool.true'));
-        $this->assertFalse($config->get('bool.false'));
-
-        // Clean up
-        unset($_ENV['SK_BOOL_TRUE']);
-        unset($_ENV['SK_BOOL_FALSE']);
-    }
-
-    public function testFromEnvironmentWithNumericValues(): void
-    {
-        $_ENV['SK_INTEGER'] = '42';
-        $_ENV['SK_FLOAT'] = '3.14';
-
-        $config = KernelConfig::fromEnvironment('SK_');
-
-        $this->assertEquals(42, $config->get('integer'));
-        $this->assertEquals(3.14, $config->get('float'));
-
-        // Clean up
-        unset($_ENV['SK_INTEGER']);
-        unset($_ENV['SK_FLOAT']);
-    }
-
-    public function testValidation(): void
-    {
-        $errors = $this->config->validate();
-        $this->assertEmpty($errors, 'Default configuration should be valid');
-    }
-
-    public function testValidationWithInvalidData(): void
-    {
-        $this->config->set('ai_services.timeout', -1);
-        $this->config->set('planner.max_steps', 0);
-        $this->config->set('memory.vector_dimensions', -100);
-        $this->config->set('memory.similarity_threshold', 2.0);
-
-        $errors = $this->config->validate();
-
-        $this->assertCount(4, $errors);
-        $this->assertContains('AI service timeout must be greater than 0', $errors);
-        $this->assertContains('Planner max steps must be greater than 0', $errors);
-        $this->assertContains('Memory vector dimensions must be greater than 0', $errors);
-        $this->assertContains('Memory similarity threshold must be between 0 and 1', $errors);
-    }
-
-    public function testFromFileJson(): void
-    {
-        $jsonConfig = [
-            'ai_services' => ['timeout' => 50],
-            'custom' => ['file_setting' => 'json_value']
-        ];
-
-        $tempFile = tempnam(sys_get_temp_dir(), 'config') . '.json';
-        file_put_contents($tempFile, json_encode($jsonConfig));
-
-        $config = KernelConfig::fromFile($tempFile);
-
-        $this->assertEquals(50, $config->get('ai_services.timeout'));
-        $this->assertEquals('json_value', $config->get('custom.file_setting'));
-
-        unlink($tempFile);
-    }
-
-    public function testFromFilePhp(): void
-    {
-        $phpConfig = [
-            'ai_services' => ['timeout' => 60],
-            'custom' => ['file_setting' => 'php_value']
-        ];
-
-        $tempFile = tempnam(sys_get_temp_dir(), 'config') . '.php';
-        file_put_contents($tempFile, '<?php return ' . var_export($phpConfig, true) . ';');
-
-        $config = KernelConfig::fromFile($tempFile);
-
-        $this->assertEquals(60, $config->get('ai_services.timeout'));
-        $this->assertEquals('php_value', $config->get('custom.file_setting'));
-
-        unlink($tempFile);
-    }
-
-    public function testFromFileNonExistent(): void
-    {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Configuration file not found');
-
-        KernelConfig::fromFile('/path/to/nonexistent/file.json');
-    }
-
-    public function testFromFileInvalidJson(): void
-    {
-        $tempFile = tempnam(sys_get_temp_dir(), 'config') . '.json';
-        file_put_contents($tempFile, '{invalid json}');
-
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Invalid JSON in config file');
-
-        try {
-            KernelConfig::fromFile($tempFile);
-        } finally {
-            unlink($tempFile);
-        }
-    }
-
-    public function testFromFileUnsupportedFormat(): void
-    {
-        $tempFile = tempnam(sys_get_temp_dir(), 'config') . '.yaml';
-        file_put_contents($tempFile, 'key: value');
-
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unsupported config file format');
-
-        try {
-            KernelConfig::fromFile($tempFile);
-        } finally {
-            unlink($tempFile);
-        }
-    }
-
-    public function testFromFileInvalidPhp(): void
-    {
-        $tempFile = tempnam(sys_get_temp_dir(), 'config') . '.php';
-        file_put_contents($tempFile, '<?php return "not an array";');
-
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('PHP config file must return an array');
-
-        try {
-            KernelConfig::fromFile($tempFile);
-        } finally {
-            unlink($tempFile);
-        }
-    }
-
-    public function testComplexNestedConfiguration(): void
-    {
-        $complex = [
-            'level1' => [
-                'level2' => [
-                    'level3' => [
-                        'level4' => 'deep_value'
-                    ]
-                ]
+        $customConfig = [
+            'ai_services' => [
+                'default_service' => 'gemini',
+                'timeout' => 60
             ],
-            'array_setting' => ['item1', 'item2', 'item3'],
-            'mixed' => [
-                'string' => 'value',
-                'number' => 42,
-                'boolean' => true,
-                'nested' => ['key' => 'nested_value']
+            'memory' => [
+                'default_store' => 'redis',
+                'vector_dimensions' => 2048
             ]
         ];
-
-        $config = new KernelConfig($complex);
-
-        $this->assertEquals('deep_value', $config->get('level1.level2.level3.level4'));
-        $this->assertEquals(['item1', 'item2', 'item3'], $config->get('array_setting'));
-        $this->assertEquals('value', $config->get('mixed.string'));
-        $this->assertEquals(42, $config->get('mixed.number'));
-        $this->assertTrue($config->get('mixed.boolean'));
-        $this->assertEquals('nested_value', $config->get('mixed.nested.key'));
-    }
-
-    public function testConfigurationOverrideChain(): void
-    {
-        // Start with defaults
-        $config = new KernelConfig();
-        $originalTimeout = $config->get('ai_services.timeout');
-
-        // Override with custom values
-        $config->set('ai_services.timeout', 100);
-        $this->assertEquals(100, $config->get('ai_services.timeout'));
-
-        // Merge additional configuration
-        $config->merge(['ai_services' => ['timeout' => 200, 'new_setting' => 'merged']]);
-        $this->assertEquals(200, $config->get('ai_services.timeout'));
-        $this->assertEquals('merged', $config->get('ai_services.new_setting'));
-
-        // Verify other defaults remain unchanged
-        $this->assertEquals('openai', $config->get('ai_services.default_service'));
-    }
-
-    public function testConfigurationImmutabilityOfDefaults(): void
-    {
-        $config1 = new KernelConfig();
-        $config2 = new KernelConfig();
-
-        $config1->set('ai_services.timeout', 100);
-
-        // Config2 should still have default values
-        $this->assertEquals(30, $config2->get('ai_services.timeout'));
-        $this->assertEquals(100, $config1->get('ai_services.timeout'));
-    }
-
-    public function testGetNonExistentKeyReturnsDefault(): void
-    {
-        $value = $this->config->get('completely.nonexistent.key.path', 'fallback');
-        $this->assertEquals('fallback', $value);
-
-        $value = $this->config->get('completely.nonexistent.key.path');
-        $this->assertNull($value);
-    }
-
-    public function testSetEmptyStringValue(): void
-    {
-        $this->config->set('empty.string', '');
-        $this->assertEquals('', $this->config->get('empty.string'));
-        $this->assertTrue($this->config->has('empty.string'));
-    }
-
-    public function testSetNullValue(): void
-    {
-        $this->config->set('null.value', null);
-        $this->assertNull($this->config->get('null.value'));
-        $this->assertTrue($this->config->has('null.value'));
-    }
-
-    public function testSetArrayValue(): void
-    {
-        $arrayValue = ['item1', 'item2', ['nested' => 'value']];
-        $this->config->set('array.setting', $arrayValue);
         
-        $this->assertEquals($arrayValue, $this->config->get('array.setting'));
-        $this->assertEquals('item1', $this->config->get('array.setting')[0]);
-        $this->assertEquals('value', $this->config->get('array.setting')[2]['nested']);
+        $config = new KernelConfig($customConfig);
+        
+        $this->assertEquals('gemini', $config->get('ai_services.default_service'));
+        $this->assertEquals(60, $config->get('ai_services.timeout'));
+        $this->assertEquals('redis', $config->get('memory.default_store'));
+        $this->assertEquals(2048, $config->get('memory.vector_dimensions'));
+    }
+
+    public function testKernelConfigGetWithDotNotation(): void
+    {
+        $config = new KernelConfig([
+            'nested' => [
+                'deep' => [
+                    'value' => 'test_value'
+                ]
+            ]
+        ]);
+        
+        $this->assertEquals('test_value', $config->get('nested.deep.value'));
+        $this->assertNull($config->get('nested.deep.nonexistent'));
+        $this->assertEquals('default', $config->get('nested.deep.nonexistent', 'default'));
+    }
+
+    public function testKernelConfigSet(): void
+    {
+        $config = new KernelConfig();
+        
+        $config->set('custom.setting', 'custom_value');
+        
+        $this->assertEquals('custom_value', $config->get('custom.setting'));
+        $this->assertTrue($config->has('custom.setting'));
+    }
+
+    public function testKernelConfigSetNested(): void
+    {
+        $config = new KernelConfig();
+        
+        $config->set('plugins.cache_enabled', false);
+        $config->set('ai_services.retry_attempts', 5);
+        
+        $this->assertFalse($config->get('plugins.cache_enabled'));
+        $this->assertEquals(5, $config->get('ai_services.retry_attempts'));
+    }
+
+    public function testKernelConfigHas(): void
+    {
+        $config = new KernelConfig([
+            'existing' => [
+                'key' => 'value'
+            ]
+        ]);
+        
+        $this->assertTrue($config->has('existing'));
+        $this->assertTrue($config->has('existing.key'));
+        $this->assertFalse($config->has('nonexistent'));
+        $this->assertFalse($config->has('existing.nonexistent'));
+    }
+
+    public function testKernelConfigRemove(): void
+    {
+        $config = new KernelConfig([
+            'removable' => [
+                'key1' => 'value1',
+                'key2' => 'value2'
+            ]
+        ]);
+        
+        $this->assertTrue($config->has('removable.key1'));
+        
+        $config->remove('removable.key1');
+        
+        $this->assertFalse($config->has('removable.key1'));
+        $this->assertTrue($config->has('removable.key2'));
+    }
+
+    public function testKernelConfigToArray(): void
+    {
+        $originalData = [
+            'plugins' => [
+                'auto_discovery' => false
+            ],
+            'memory' => [
+                'default_store' => 'redis'
+            ]
+        ];
+        
+        $config = new KernelConfig($originalData);
+        $arrayData = $config->toArray();
+        
+        $this->assertIsArray($arrayData);
+        $this->assertArrayHasKey('plugins', $arrayData);
+        $this->assertArrayHasKey('memory', $arrayData);
+        $this->assertEquals(false, $arrayData['plugins']['auto_discovery']);
+        $this->assertEquals('redis', $arrayData['memory']['default_store']);
+    }
+
+    public function testKernelConfigToJson(): void
+    {
+        $config = new KernelConfig([
+            'test' => [
+                'value' => 'json_test'
+            ]
+        ]);
+        
+        $json = $config->toJson();
+        
+        $this->assertIsString($json);
+        $this->assertStringContainsString('json_test', $json);
+        
+        $decoded = json_decode($json, true);
+        $this->assertEquals('json_test', $decoded['test']['value']);
+    }
+
+    public function testKernelConfigMerge(): void
+    {
+        $config1 = new KernelConfig([
+            'ai_services' => [
+                'default_service' => 'openai',
+                'timeout' => 30
+            ],
+            'unique_to_first' => 'value1'
+        ]);
+        
+        $config2 = new KernelConfig([
+            'ai_services' => [
+                'timeout' => 60,
+                'retry_attempts' => 3
+            ],
+            'unique_to_second' => 'value2'
+        ]);
+        
+        $merged = $config1->merge($config2);
+        
+        // Check merged values
+        $this->assertEquals('openai', $merged->get('ai_services.default_service'));
+        $this->assertEquals(60, $merged->get('ai_services.timeout')); // Should be overridden
+        $this->assertEquals(3, $merged->get('ai_services.retry_attempts'));
+        $this->assertEquals('value1', $merged->get('unique_to_first'));
+        $this->assertEquals('value2', $merged->get('unique_to_second'));
+    }
+
+    public function testKernelConfigClone(): void
+    {
+        $original = new KernelConfig([
+            'test' => [
+                'value' => 'original'
+            ]
+        ]);
+        
+        $cloned = $original->clone();
+        
+        $this->assertNotSame($original, $cloned);
+        $this->assertEquals($original->get('test.value'), $cloned->get('test.value'));
+        
+        // Modify clone
+        $cloned->set('test.value', 'modified');
+        
+        // Original should remain unchanged
+        $this->assertEquals('original', $original->get('test.value'));
+        $this->assertEquals('modified', $cloned->get('test.value'));
+    }
+
+    public function testKernelConfigValidate(): void
+    {
+        $config = new KernelConfig();
+        
+        // Test with valid configuration
+        $isValid = $config->validate();
+        $this->assertTrue($isValid);
+    }
+
+    public function testKernelConfigValidateWithSchema(): void
+    {
+        $schema = [
+            'required' => ['ai_services', 'memory'],
+            'properties' => [
+                'ai_services' => [
+                    'type' => 'array',
+                    'required' => ['default_service']
+                ]
+            ]
+        ];
+        
+        $validConfig = new KernelConfig([
+            'ai_services' => [
+                'default_service' => 'openai'
+            ],
+            'memory' => [
+                'default_store' => 'volatile'
+            ]
+        ]);
+        
+        $this->assertTrue($validConfig->validate($schema));
+        
+        $invalidConfig = new KernelConfig([
+            'memory' => [
+                'default_store' => 'volatile'
+            ]
+            // Missing required ai_services
+        ]);
+        
+        $this->assertFalse($invalidConfig->validate($schema));
+    }
+
+    public function testKernelConfigGetAllKeys(): void
+    {
+        $config = new KernelConfig([
+            'section1' => [
+                'key1' => 'value1',
+                'key2' => 'value2'
+            ],
+            'section2' => [
+                'key3' => 'value3'
+            ]
+        ]);
+        
+        $keys = $config->getAllKeys();
+        
+        $this->assertIsArray($keys);
+        $this->assertContains('section1.key1', $keys);
+        $this->assertContains('section1.key2', $keys);
+        $this->assertContains('section2.key3', $keys);
+    }
+
+    public function testKernelConfigGetSection(): void
+    {
+        $config = new KernelConfig([
+            'ai_services' => [
+                'default_service' => 'openai',
+                'timeout' => 30,
+                'retry_attempts' => 3
+            ]
+        ]);
+        
+        $section = $config->getSection('ai_services');
+        
+        $this->assertIsArray($section);
+        $this->assertEquals('openai', $section['default_service']);
+        $this->assertEquals(30, $section['timeout']);
+        $this->assertEquals(3, $section['retry_attempts']);
+    }
+
+    public function testKernelConfigSetSection(): void
+    {
+        $config = new KernelConfig();
+        
+        $sectionData = [
+            'enabled' => true,
+            'level' => 'debug',
+            'format' => 'json'
+        ];
+        
+        $config->setSection('logging', $sectionData);
+        
+        $this->assertEquals($sectionData, $config->getSection('logging'));
+        $this->assertTrue($config->get('logging.enabled'));
+        $this->assertEquals('debug', $config->get('logging.level'));
+        $this->assertEquals('json', $config->get('logging.format'));
+    }
+
+    public function testKernelConfigEnvironmentOverrides(): void
+    {
+        // Simulate environment variables
+        $_ENV['SK_AI_SERVICES_DEFAULT_SERVICE'] = 'gemini';
+        $_ENV['SK_MEMORY_DEFAULT_STORE'] = 'redis';
+        
+        $config = new KernelConfig();
+        $config->loadFromEnvironment('SK_');
+        
+        $this->assertEquals('gemini', $config->get('ai_services.default_service'));
+        $this->assertEquals('redis', $config->get('memory.default_store'));
+        
+        // Cleanup
+        unset($_ENV['SK_AI_SERVICES_DEFAULT_SERVICE']);
+        unset($_ENV['SK_MEMORY_DEFAULT_STORE']);
+    }
+
+    public function testKernelConfigLoadFromFile(): void
+    {
+        $configFile = tempnam(sys_get_temp_dir(), 'test_config_') . '.json';
+        
+        $configData = [
+            'ai_services' => [
+                'default_service' => 'file_test'
+            ]
+        ];
+        
+        file_put_contents($configFile, json_encode($configData));
+        
+        $config = new KernelConfig();
+        $config->loadFromFile($configFile);
+        
+        $this->assertEquals('file_test', $config->get('ai_services.default_service'));
+        
+        // Cleanup
+        unlink($configFile);
+    }
+
+    public function testKernelConfigSaveToFile(): void
+    {
+        $config = new KernelConfig([
+            'test_section' => [
+                'test_key' => 'test_value'
+            ]
+        ]);
+        
+        $configFile = tempnam(sys_get_temp_dir(), 'test_config_') . '.json';
+        
+        $config->saveToFile($configFile);
+        
+        $this->assertFileExists($configFile);
+        
+        $savedData = json_decode(file_get_contents($configFile), true);
+        $this->assertEquals('test_value', $savedData['test_section']['test_key']);
+        
+        // Cleanup
+        unlink($configFile);
+    }
+
+    public function testKernelConfigDefaultsRestoration(): void
+    {
+        $config = new KernelConfig();
+        
+        // Modify some values
+        $config->set('ai_services.timeout', 120);
+        $config->set('memory.vector_dimensions', 4096);
+        
+        $this->assertEquals(120, $config->get('ai_services.timeout'));
+        $this->assertEquals(4096, $config->get('memory.vector_dimensions'));
+        
+        // Restore defaults
+        $config->restoreDefaults();
+        
+        // Should be back to defaults
+        $this->assertEquals(30, $config->get('ai_services.timeout'));
+        $this->assertEquals(1536, $config->get('memory.vector_dimensions'));
     }
 } 

@@ -61,16 +61,23 @@ class FunctionResult
      * Constructs a new FunctionResult instance
      * 
      * @param string $text     Function output text
-     * @param int    $tokens   Token count used (default: 0)
+     * @param int|array $tokens   Token count used (default: 0) or metadata array for backward compatibility
      * @param array  $metadata Additional metadata (default: empty)
      * 
      * @since 1.0.0
      */
-    public function __construct(string $text = '', int $tokens = 0, array $metadata = [])
+    public function __construct(string $text = '', int|array $tokens = 0, array $metadata = [])
     {
         $this->text = $text;
-        $this->tokens = $tokens;
-        $this->metadata = $metadata;
+        
+        // Handle backward compatibility where tokens parameter might be metadata array
+        if (is_array($tokens)) {
+            $this->tokens = 0;
+            $this->metadata = $tokens;
+        } else {
+            $this->tokens = $tokens;
+            $this->metadata = $metadata;
+        }
     }
 
     /**

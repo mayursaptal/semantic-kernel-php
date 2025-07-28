@@ -255,7 +255,7 @@ class KernelConfig
      * Recursively merges the provided configuration with the existing
      * configuration, overriding existing values.
      * 
-     * @param array<string, mixed> $config Configuration data to merge
+     * @param array<string, mixed>|KernelConfig $config Configuration data to merge
      * 
      * @return self Configuration instance for method chaining
      * @since 1.0.0
@@ -271,9 +271,10 @@ class KernelConfig
      * ]);
      * ```
      */
-    public function merge(array $config): self
+    public function merge(array|KernelConfig $config): self
     {
-        $this->config = $this->deepMerge($this->config, $config);
+        $configArray = $config instanceof KernelConfig ? $config->toArray() : $config;
+        $this->config = $this->deepMerge($this->config, $configArray);
         return $this;
     }
 
@@ -357,7 +358,10 @@ class KernelConfig
      */
     public function loadFromEnvironment(string $prefix = 'SK_'): self
     {
-        foreach ($_ENV as $key => $value) {
+        // Check both $_ENV and $_SERVER for environment variables
+        $envVars = array_merge($_ENV, $_SERVER);
+        
+        foreach ($envVars as $key => $value) {
             if (strpos($key, $prefix) === 0) {
                 $configKey = strtolower(substr($key, strlen($prefix)));
                 $configKey = str_replace('_', '.', $configKey);
@@ -504,13 +508,28 @@ class KernelConfig
      * }
      * ```
      */
-    public function validate(): array
+    public function validate(?array $schema = null): bool|array
+    {
+        if ($schema !== null) {
+            return $this->validateAgainstSchema($schema);
+        }
+
+        return $this->isValid();
+    }
+
+    /**
+     * Get detailed validation errors
+     * 
+     * @return array<string> Array of validation error messages
+     * @since 1.0.0
+     */
+    public function getValidationErrors(): array
     {
         $errors = [];
 
         // Validate AI services
         $defaultService = $this->get('ai_services.default_service');
-        if (!in_array($defaultService, ['openai', 'azure', 'ollama'])) {
+        if (!in_array($defaultService, ['openai', 'azure', 'ollama', 'gemini'])) {
             $errors[] = "Invalid default AI service: {$defaultService}";
         }
 
@@ -538,6 +557,40 @@ class KernelConfig
         }
 
         return $errors;
+    }
+
+    /**
+     * Validate configuration against schema
+     * 
+     * @param array<string, mixed> $schema Validation schema
+     * 
+     * @return bool True if valid against schema
+     * @since 1.0.0
+     * @internal
+     */
+    private function validateAgainstSchema(array $schema): bool
+    {
+        // Check required fields
+        if (isset($schema['required']) && is_array($schema['required'])) {
+            foreach ($schema['required'] as $requiredField) {
+                if (!$this->has($requiredField)) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Check if configuration is valid
+     * 
+     * @return bool True if configuration is valid, false otherwise
+     * @since 1.0.0
+     */
+    public function isValid(): bool
+    {
+        return empty($this->getValidationErrors());
     }
 
     /**
@@ -578,6 +631,116 @@ class KernelConfig
         $config = new self();
         $config->loadFromFile($filePath);
         return $config;
+    }
+
+    /**
+     * Convert configuration to array
+     * 
+     * @return array<string, mixed> Configuration as array
+     * @since 1.0.0
+     */
+    public function toArray(): array
+    {
+        return $this->config;
+    }
+
+    /**
+     * Convert configuration to JSON string
+     * 
+     * @return string Configuration as JSON
+     * @since 1.0.0
+     */
+    public function toJson(): string
+    {
+        return json_encode($this->config, JSON_PRETTY_PRINT);
+    }
+
+    /**
+     * Get all configuration keys
+     * 
+     * @return array<string> Array of all keys
+     * @since 1.0.0
+     */
+    public function getAllKeys(): array
+    {
+        return $this->flattenKeys($this->config);
+    }
+
+    /**
+     * Get a configuration section
+     * 
+     * @param string $section Section name
+     * 
+     * @return array<string, mixed> Section configuration
+     * @since 1.0.0
+     */
+    public function getSection(string $section): array
+    {
+        return $this->get($section, []);
+    }
+
+    /**
+     * Set a configuration section
+     * 
+     * @param string $section Section name
+     * @param array<string, mixed> $config Section configuration
+     * 
+     * @return self For method chaining
+     * @since 1.0.0
+     */
+    public function setSection(string $section, array $config): self
+    {
+        $this->set($section, $config);
+        return $this;
+    }
+
+    /**
+     * Clone the configuration
+     * 
+     * @return KernelConfig Cloned configuration
+     * @since 1.0.0
+     */
+    public function clone(): KernelConfig
+    {
+        $cloned = new KernelConfig();
+        $cloned->config = $this->config;
+        $cloned->defaults = $this->defaults;
+        return $cloned;
+    }
+
+    /**
+     * Restore default configuration
+     * 
+     * @return self For method chaining
+     * @since 1.0.0
+     */
+    public function restoreDefaults(): self
+    {
+        $this->config = $this->defaults;
+        return $this;
+    }
+
+    /**
+     * Flatten configuration keys to dot notation
+     * 
+     * @param array<string, mixed> $array Array to flatten
+     * @param string $prefix Key prefix
+     * 
+     * @return array<string> Flattened keys
+     * @since 1.0.0
+     * @internal
+     */
+    private function flattenKeys(array $array, string $prefix = ''): array
+    {
+        $keys = [];
+        foreach ($array as $key => $value) {
+            $newKey = $prefix === '' ? $key : $prefix . '.' . $key;
+            $keys[] = $newKey;
+            if (is_array($value)) {
+                $keys = array_merge($keys, $this->flattenKeys($value, $newKey));
+            }
+        }
+        return $keys;
     }
 
     /**

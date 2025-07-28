@@ -251,7 +251,7 @@ class OllamaLocalService implements ChatServiceInterface
      */
     public function getServiceName(): string
     {
-        return 'Ollama Local LLM';
+        return 'Ollama';
     }
 
     /**

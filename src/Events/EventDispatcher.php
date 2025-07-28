@@ -186,7 +186,8 @@ class EventDispatcher
      * event object to each listener. Handles errors gracefully by logging
      * them and continuing with remaining listeners.
      * 
-     * @param KernelEvent $event Event to dispatch
+     * @param KernelEvent|string $event Event to dispatch or event type string
+     * @param array<string, mixed> $data Optional event data when using string event type
      * 
      * @return int Number of listeners that were invoked
      * @since 1.0.0
@@ -196,15 +197,18 @@ class EventDispatcher
      * // Dispatch function invocation event
      * $event = new FunctionInvokedEvent('greet', 'TextUtils', 150, true);
      * $listenerCount = $dispatcher->dispatch($event);
-     * echo "Event dispatched to {$listenerCount} listeners";
      * 
-     * // Dispatch custom kernel event
-     * $customEvent = new KernelEvent('CustomOperation', ['data' => 'value']);
-     * $dispatcher->dispatch($customEvent);
+     * // Dispatch with string event type
+     * $listenerCount = $dispatcher->dispatch('test.event', ['data' => 'value']);
      * ```
      */
-    public function dispatch(KernelEvent $event): int
+    public function dispatch(KernelEvent|string $event, array $data = []): int
     {
+        // Convert string to KernelEvent if needed
+        if (is_string($event)) {
+            $event = new GenericKernelEvent($event, $data);
+        }
+
         $eventType = $event->getEventType();
         
         if (!isset($this->listeners[$eventType])) {
@@ -381,6 +385,67 @@ class EventDispatcher
         }
         
         return $this;
+    }
+
+    /**
+     * Alias for subscribe method
+     * 
+     * @param string $eventType Event type to listen for
+     * @param callable $listener Listener function
+     * @param int $priority Priority (higher = first, default: 0)
+     * 
+     * @return self For method chaining
+     * @since 1.0.0
+     */
+    public function addEventListener(string $eventType, callable $listener, int $priority = 0): self
+    {
+        return $this->subscribe($eventType, $listener);
+    }
+
+    /**
+     * Add event listener that runs only once
+     * 
+     * @param string $eventType Event type to listen for
+     * @param callable $listener Listener function
+     * 
+     * @return self For method chaining
+     * @since 1.0.0
+     */
+    public function addEventListenerOnce(string $eventType, callable $listener): self
+    {
+        $onceWrapper = function($event) use ($listener, $eventType, &$onceWrapper) {
+            $listener($event);
+            $this->unsubscribe($eventType, $onceWrapper);
+        };
+        
+        return $this->subscribe($eventType, $onceWrapper);
+    }
+
+    /**
+     * Remove event listener
+     * 
+     * @param string $eventType Event type
+     * @param callable $listener Listener function
+     * 
+     * @return self For method chaining
+     * @since 1.0.0
+     */
+    public function removeEventListener(string $eventType, callable $listener): self
+    {
+        return $this->unsubscribe($eventType, $listener);
+    }
+
+    /**
+     * Get listeners for event type
+     * 
+     * @param string $eventType Event type
+     * 
+     * @return array<callable> Array of listeners
+     * @since 1.0.0
+     */
+    public function getListeners(string $eventType): array
+    {
+        return $this->listeners[$eventType] ?? [];
     }
 
     /**

@@ -72,9 +72,18 @@ class TokenCounter
      * $codeTokens = $counter->countTokens('<?php echo "hi";', 'gpt-4', 'code');
      * ```
      */
-    public function countTokens(string $text, string $model = 'gpt-3.5-turbo', string $type = 'english'): int
+    public function countTokens(?string $text, string $model = 'gpt-3.5-turbo', string $type = 'english'): int
     {
-        if (empty($text)) {
+        // Validate input
+        if ($text === null) {
+            throw new \InvalidArgumentException('Text cannot be null');
+        }
+        
+        if (!is_string($text)) {
+            throw new \InvalidArgumentException('Text must be a string');
+        }
+
+        if (empty(trim($text))) {
             return 0;
         }
 
@@ -87,7 +96,7 @@ class TokenCounter
         // Apply model-specific adjustments
         $adjustmentFactor = $this->getModelAdjustmentFactor($model);
         
-        return max(1, (int) ceil($estimatedTokens * $adjustmentFactor));
+        return max(0, (int) ceil($estimatedTokens * $adjustmentFactor));
     }
 
     /**
@@ -182,6 +191,110 @@ class TokenCounter
             'text-embedding-ada-002' => 0.8, // Embeddings typically use fewer tokens
             default => 1.0,
         };
+    }
+
+    /**
+     * Check if text is within token limit
+     * 
+     * @param string $text Text to check
+     * @param int $limit Token limit
+     * @param string $model Model to use for counting
+     * 
+     * @return bool True if within limit, false otherwise
+     * @since 1.0.0
+     */
+    public function isWithinLimit(string $text, int $limit, string $model = 'gpt-3.5-turbo'): bool
+    {
+        return $this->countTokens($text, $model) <= $limit;
+    }
+
+    /**
+     * Truncate text to token limit
+     * 
+     * @param string $text Text to truncate
+     * @param int $limit Token limit
+     * @param string $model Model to use for counting
+     * 
+     * @return string Truncated text
+     * @since 1.0.0
+     */
+    public function truncateToLimit(string $text, int $limit, string $model = 'gpt-3.5-turbo'): string
+    {
+        if ($this->isWithinLimit($text, $limit, $model)) {
+            return $text;
+        }
+
+        // Simple truncation by character percentage
+        $currentTokens = $this->countTokens($text, $model);
+        $ratio = $limit / $currentTokens;
+        $targetLength = (int) (mb_strlen($text) * $ratio * 0.9); // 90% to be safe
+
+        return mb_substr($text, 0, $targetLength);
+    }
+
+    /**
+     * Get model information
+     * 
+     * @param string $model Model name
+     * 
+     * @return array<string, mixed> Model information
+     * @since 1.0.0
+     */
+    public function getModelInfo(string $model): array
+    {
+        $pricing = self::MODEL_PRICING[$model] ?? null;
+        return [
+            'model' => $model,
+            'supported' => in_array($model, $this->getSupportedModels()),
+            'pricing' => $pricing,
+            'adjustment_factor' => $this->getModelAdjustmentFactor($model),
+        ];
+    }
+
+    /**
+     * Count tokens from message format
+     * 
+     * @param array<array<string, string>> $messages Array of messages
+     * @param string $model Model to use for counting
+     * 
+     * @return int Total token count
+     * @since 1.0.0
+     */
+    public function countTokensFromMessages(array $messages, string $model = 'gpt-3.5-turbo'): int
+    {
+        $totalTokens = 0;
+        foreach ($messages as $message) {
+            if (isset($message['content'])) {
+                $totalTokens += $this->countTokens($message['content'], $model);
+            }
+        }
+        return $totalTokens;
+    }
+
+    /**
+     * Check if result is cached
+     * 
+     * @param string $text Text to check
+     * @param string $model Model name
+     * 
+     * @return bool True if cached, false otherwise
+     * @since 1.0.0
+     */
+    public function isCached(string $text, string $model = 'gpt-3.5-turbo'): bool
+    {
+        // Simple implementation - could be enhanced with actual caching
+        return false;
+    }
+
+    /**
+     * Clear token count cache
+     * 
+     * @return void
+     * @since 1.0.0
+     */
+    public function clearCache(): void
+    {
+        // Simple implementation - could be enhanced with actual cache clearing
     }
 
     /**

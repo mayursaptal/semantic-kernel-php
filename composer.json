@@ -3,7 +3,7 @@
     "description": "PHP implementation of Microsoft's Semantic Kernel framework for orchestrating LLMs, memory, and AI agents",
     "type": "library",
     "license": "MIT",
-    "keywords": ["ai", "semantic-kernel", "llm", "microsoft", "machine-learning", "chatgpt", "openai", "php", "artificial-intelligence", "gpt", "azure-openai", "ollama"],
+    "keywords": ["ai", "semantic-kernel", "llm", "microsoft", "machine-learning", "chatgpt", "openai", "gemini", "php", "artificial-intelligence", "gpt", "azure-openai", "ollama", "google-ai"],
     "homepage": "https://github.com/mayursaptal/semantic-kernel-php",
     "support": {
         "issues": "https://github.com/mayursaptal/semantic-kernel-php/issues",
@@ -20,6 +20,8 @@
     ],
     "require": {
         "php": ">=8.1",
+        "ext-json": "*",
+        "ext-mbstring": "*",
         "guzzlehttp/guzzle": "^7.0",
         "vlucas/phpdotenv": "^5.4",
         "psr/log": "^3.0",
@@ -28,6 +30,10 @@
     "require-dev": {
         "phpunit/phpunit": "^10.5"
     },
+    "suggest": {
+        "ext-redis": "For Redis memory store functionality",
+        "ext-curl": "For HTTP client performance"
+    },
     "autoload": {
         "psr-4": {
             "SemanticKernel\\": "src/"
@@ -35,20 +41,25 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "SemanticKernel\\Tests\\": "tests/"
+            "Tests\\": "tests/"
         }
     },
     "scripts": {
-        "test": "./vendor/bin/phpunit --configuration phpunit.xml",
-        "test-unit": "./vendor/bin/phpunit --configuration phpunit.xml --testsuite unit",
-        "test-integration": "./vendor/bin/phpunit --configuration phpunit.xml --testsuite integration", 
-        "test-coverage": "./vendor/bin/phpunit --configuration phpunit.xml --coverage-html coverage/html",
-        "test-coverage-text": "./vendor/bin/phpunit --configuration phpunit.xml --coverage-text",
-        "test-quick": "php tests/run_all_tests.php",
-        "example-basic": "@php examples/01_basic_usage_example.php",
-        "example-advanced": "@php examples/02_advanced_features_demo.php",
+        "test": "./vendor/bin/phpunit",
+        "test-testdox": "./vendor/bin/phpunit --testdox",
+        "test-coverage": "./vendor/bin/phpunit --coverage-html coverage/html",
+        "test-coverage-text": "./vendor/bin/phpunit --coverage-text",
+        "test-verbose": "./vendor/bin/phpunit --testdox --colors=always",
+        "example-basic": "@php examples/01_basic_usage.php",
+        "example-ai-services": "@php examples/02_ai_services.php",
+        "example-semantic": "@php examples/03_semantic_functions.php",
+        "example-memory": "@php examples/04_memory_and_planning.php",
+        "example-advanced": "@php examples/05_advanced_features.php",
         "examples": [
             "@example-basic",
+            "@example-ai-services",
+            "@example-semantic",
+            "@example-memory",
             "@example-advanced"
         ],
         "check": [
@@ -57,8 +68,11 @@
         ],
         "ci": [
             "@composer validate --strict",
-            "@test-coverage-text",
-            "@examples"
+            "@test-coverage-text"
+        ],
+        "install-dev": [
+            "@composer install",
+            "@composer dump-autoload"
         ]
     },
     "config": {
@@ -67,8 +81,14 @@
             "php-http/discovery": true
         },
         "optimize-autoloader": true,
-        "platform-check": false
+        "platform-check": false,
+        "process-timeout": 0
     },
     "minimum-stability": "stable",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "extra": {
+        "branch-alias": {
+            "dev-main": "1.0-dev"
+        }
+    }
 }
